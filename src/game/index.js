@@ -3,8 +3,8 @@ import office from './scenes/office';
 
 const config = {
     type: Phaser.AUTO,
-    width: 800,
-    height: 600,
+    width: '100%',
+    height: '100%',
     backgroundColor: '#000',
     pixelArt: true,
     parent: 'game-container',

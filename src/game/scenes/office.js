@@ -81,9 +81,9 @@ export default class PlatformerScene extends Phaser.Scene {
             };
             const e = new Employee(this, meta, p.x, p.y, createFinder(tileset));
             e.pathFinder.setGrid(createGrid(this.map, 'World', getEmployeesCoords(this.employees, e)));
-            e.body.setCollideWorldBounds(true);
             //this.physics.add.collider(employee, worldLayer); TODO: physics fucks up the path following :(
             this.employees.add(e);
+            e.body.setCollideWorldBounds(true);
         });
     }
 

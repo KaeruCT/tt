@@ -1,7 +1,21 @@
-export default class Employee {
-    constructor(scene, x, y) {
-        this.scene = scene;
-        this.cursors = scene.input.keyboard.createCursorKeys();
+import Phaser from 'phaser';
+import { TILE_DIMENSION } from '../utils/misc';
+import { randRange } from '../utils/rand';
+
+export default class Employee extends Phaser.GameObjects.Sprite {
+    constructor(scene, meta, x, y, pathFinder) {
+        super(scene, x, y, 'employee');
+        scene.physics.world.enable(this);
+        scene.add.existing(this);
+        this.setSize(12, 8);
+        this.body.setOffset(2, 8);
+        this.speed = 100;
+        this.meta = meta;
+        this.path = [];
+        this.pathFinder = pathFinder;
+        this.reliefPoint = false;
+        this.reliefInProgress = false;
+        this.relief = null;
 
         const { anims } = this.scene;
         anims.create({
@@ -28,59 +42,120 @@ export default class Employee {
             frameRate: 10,
             repeat: -1
         });
+    }
 
-        this.sprite = scene.physics.add
-            .sprite(x, y, 'employee')
-            .setSize(16, 8)
-            .setOffset(0, 8);
+    setDestination(destination) {
+        return new Promise((resolve, reject) => {
+            this.destination = destination;
+            this.reliefPoint = this.destination; // means they could potentially relief at their desk (bad)
+            this.updatePathFinder();
+            this.onDestinationSuccess = resolve;
+        });
+    }
+
+    updatePathFinder() {
+        const p = this.scene.worldLayer.worldToTileXY(this.x, this.y);
+        this.pathFinder.findPath(
+            p.x,
+            p.y,
+            this.destination.x,
+            this.destination.y,
+            this.onPathUpdate.bind(this)
+        );
+    }
+
+    onPathUpdate(path) {
+        const { meta, destination } = this;
+        if (path !== null) {    
+            path.shift(); // first path coordinates are the starting point
+            this.path = path;
+            console.log('Employee', meta.name, 'going to', destination.id);
+        } else {
+            path = [];
+            console.log('Employee', meta.name, 'could not find a path to', destination.id);
+        }
+    }
+
+    setRelief(relief) {
+        this.relief = relief;
+    }
+
+    startToRelieve() {
+        const { reliefPoint, relief, meta } = this;
+        if (reliefPoint) reliefPoint.busy = true;
+        this.reliefInProgress = true;
+        const { min, max } = relief.time;
+        const reliefTime = randRange(min * 1000, max * 1000);
+        console.log('Employee', meta.name, 'started to', relief.id, `(${reliefTime})`);
+        setTimeout(() => {
+            console.log('Employee', meta.name, 'finished', relief.id, `(${reliefTime})`);
+            if (reliefPoint) reliefPoint.busy = false;
+            this.reliefInProgress = false;
+            this.setRelief(null);
+            this.goToDesk();
+        }, reliefTime);
+    }
+
+    goToDesk() {
+        this.setDestination(this.meta.desk);
     }
 
     update() {
-        const { sprite, cursors } = this;
-        const speed = 80;
-        const prevVelocity = sprite.body.velocity.clone();
-        // Stop any previous movement from the last frame
-        sprite.setVelocity(0);
+        const { anims, scene, meta, pathFinder, speed, destination, path, body } = this;
+        const dx = body.velocity.x ? (body.velocity.x > 0 ? -1 : 1) : 0;
+        const dy = body.velocity.y ? (body.velocity.y > 0 ? -1 : 1) : 0;
+        const current = scene.worldLayer.worldToTileXY(
+            this.x + dx * TILE_DIMENSION*0.5,
+            this.y + dy * TILE_DIMENSION*0.5
+        );
 
-        // Horizontal movement
-        if (cursors.left.isDown) {
-            sprite.setVelocityX(-speed);
-        } else if (cursors.right.isDown) {
-            sprite.setVelocityX(speed);
+        const nextPoint = path.length && path[0];
+        if (nextPoint) {
+            if (nextPoint.y < current.y) {
+                body.setVelocityY(-speed);
+            } else if (nextPoint.y > current.y) {
+                body.setVelocityY(speed);
+            } else {
+                body.setVelocityY(0);
+            }
+            
+            if (nextPoint.x < current.x) {
+                body.setVelocityX(-speed);
+            } else if (nextPoint.x > current.x) {
+                body.setVelocityX(speed);
+            } else {
+                body.setVelocityX(0);
+            }
+
+            body.velocity.normalize().scale(speed);
+
+            if (current.x === nextPoint.x && current.y === nextPoint.y) {
+                path.shift();
+                body.setVelocityY(0);
+                body.setVelocityX(0);
+            }
         }
 
-        // Vertical movement
-        if (cursors.up.isDown) {
-            sprite.setVelocityY(-speed);
-        } else if (cursors.down.isDown) {
-            sprite.setVelocityY(speed);
-        }
-
-        // Normalize and scale the velocity so that employee can't move faster along a diagonal
-        sprite.body.velocity.normalize().scale(speed);
-
-        // Update the animation last and give left/right animations precedence over up/down animations
-        const { anims } = sprite;
-        if (cursors.left.isDown) {
-            anims.play('employee-left', true);
-        } else if (cursors.right.isDown) {
-            anims.play('employee-right', true);
-        } else if (cursors.up.isDown) {
+        if (body.velocity.y < 0) {
             anims.play('employee-up', true);
-        } else if (cursors.down.isDown) {
+        } else if (body.velocity.y > 0) {
             anims.play('employee-down', true);
+        } else if (body.velocity.x < 0) {
+            anims.play('employee-left', true);
+        } else if (body.velocity.x > 0) {
+            anims.play('employee-right', true);
         } else {
-            anims.stop();
-
-            // If we were moving, pick and idle frame to use
-            //if (prevVelocity.x < 0) this.setTexture('atlas', 'misa-left');
-            //else if (prevVelocity.x > 0) this.setTexture('atlas', 'misa-right');
-            //else if (prevVelocity.y < 0) this.setTexture('atlas', 'misa-back');
-            //else if (prevVelocity.y > 0) this.setTexture('atlas', 'misa-front');
+            if (destination === null) anims.stop();
         }
-    }
 
-    destroy() {
-        this.sprite.destroy();
+        if (destination) {
+            if (current.x === destination.x && current.y === destination.y) {
+                this.onDestinationSuccess && this.onDestinationSuccess(this.destination);
+                this.destination = null;
+                console.log('Employee ', meta.name, ' arrived to ', destination.id);
+            } else {
+                pathFinder.calculate();
+            }
+        }
     }
 }

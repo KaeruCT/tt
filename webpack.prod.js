@@ -83,12 +83,12 @@ module.exports = {
             inject: 'body',
         }),
         new CopyWebpackPlugin([
-            { from: 'assets' }
+            { from: 'assets', to: 'assets' }
         ]),
         new CleanWebpackPlugin(buildPath),
         new FaviconsWebpackPlugin({
             // Your source logo
-            logo: './src/assets/icon.png',
+            logo: './assets/logo.png',
             // The prefix for all image files (might be a folder or a name)
             prefix: 'icons-[hash]/',
             // Generate a cache file with control hashes and
@@ -99,7 +99,7 @@ module.exports = {
             // favicon background color (see https://github.com/haydenbleasel/favicons#usage)
             background: '#fff',
             // favicon app title (see https://github.com/haydenbleasel/favicons#usage)
-            title: '{{projectName}}',
+            title: 'Toilet Game',
 
             // which icons should be generated (see https://github.com/haydenbleasel/favicons#usage)
             icons: {

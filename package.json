@@ -7,7 +7,7 @@
     "start": "webpack-dev-server --config webpack.dev.js --mode development",
     "build": "webpack --config webpack.prod.js --mode production",
     "preview": "npm run build && http-server dist",
-    "publish": "npm run build && git subtree push --prefix dist origin gh-pages"
+    "push": "npm run build && git commit -am 'auto dist push' && git subtree push --prefix dist origin gh-pages"
   },
   "author": "Andres Villarreal",
   "license": "ISC",

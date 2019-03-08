@@ -7,18 +7,22 @@ export default class Employee extends Phaser.GameObjects.Sprite {
         super(scene, x, y, 'employee');
         scene.physics.world.enable(this);
         scene.add.existing(this);
+        this.setOrigin(0.5, 0.75);
         this.setSize(12, 8);
         this.body.setOffset(2, 8);
         this.speed = 100;
         this.meta = meta;
         this.path = [];
         this.pathFinder = pathFinder;
-        this.reliefPoint = false;
+        this.tint = meta.tint;
+        this.working = true;
+        this.reliefPoint = null;
         this.reliefInProgress = false;
         this.reliefExpirationTime = 0;
         this.reliefAttempts = 0;
         this.relief = null;
-        this.tint = meta.tint;
+        this.time = 0;
+        this.nextReliefMinTime = 0;
 
         const { anims } = this.scene;
         anims.create({
@@ -48,6 +52,7 @@ export default class Employee extends Phaser.GameObjects.Sprite {
     }
 
     setDestination(destination) {
+        this.working = false;
         return new Promise((resolve, reject) => {
             this.destination = destination;
             this.reliefPoint = this.destination; // means they could potentially relief at their desk (bad)
@@ -83,6 +88,8 @@ export default class Employee extends Phaser.GameObjects.Sprite {
         const { meta } = this;
         if (relief) {
             console.log('Employee', meta.name, 'needs to', relief.id);
+        } else if (this.relief) {
+            this.nextReliefMinTime = this.time + this.relief.cooldown * 1000;
         }
         this.relief = relief;
         this.reliefExpirationTime = 0;
@@ -114,10 +121,34 @@ export default class Employee extends Phaser.GameObjects.Sprite {
     }
 
     goToDesk() {
-        this.setDestination(this.meta.desk);
+        this.setDestination(this.meta.desk).then(() => {
+            this.working = true;
+        });
     }
 
+    triggerRestroomAttempt(findReliefPoint) {
+        if (!this.relief) return;
+
+        const reliefPoint = findReliefPoint(this.relief.id);
+
+        if (!reliefPoint) {
+            console.log('There is no proper restroom for', this.meta.name);
+            this.giveUp();
+            return;
+        }
+        
+        this.setDestination(reliefPoint).then(destination => {
+            if (destination.busy) {
+                console.log(this.meta.name, 'went to', destination.id, 'but it was busy');
+                this.giveUp();
+            } else {
+                this.startToRelieve();
+            }
+        });
+    };
+
     update(time) {
+        this.time = time;
         const { anims, scene, meta, pathFinder, speed, destination, path, body, relief } = this;
         const dx = body.velocity.x ? (body.velocity.x > 0 ? -1 : 1) : 0;
         const dy = body.velocity.y ? (body.velocity.y > 0 ? -1 : 1) : 0;

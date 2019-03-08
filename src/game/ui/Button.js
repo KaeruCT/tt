@@ -1,11 +1,10 @@
-const common = {
-    fill: '#333', padding: 4,
-    fontSize: '10px',
-};
+import Phaser from 'phaser';
+import { dark } from './common';
+
 const style = {
-    initial: { ...common, backgroundColor: '#aa6' },
-    hover: { ...common, backgroundColor: '#cc8' },
-    active: { ...common, backgroundColor: '#995' },
+    initial: { ...dark, backgroundColor: '#aa6' },
+    hover: { ...dark, backgroundColor: '#cc8' },
+    active: { ...dark, backgroundColor: '#995' },
 };
 
 export default class Button extends Phaser.GameObjects.Text {

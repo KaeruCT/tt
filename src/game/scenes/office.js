@@ -2,34 +2,17 @@ import Phaser from 'phaser';
 import Employee from '../sprites/Employee';
 import { createFinder, createGrid } from '../utils/path';
 import { randValue, randBool } from '../utils/rand';
-import { snap, SKIN_COLORS } from '../utils/misc';
+import { snap, SKIN_COLORS, TILE_DIMENSION } from '../utils/misc';
 import { RELIEF_TYPES } from '../logic/relief';
 import Button from '../ui/Button';
+import Text from '../ui/Text';
+import { Business } from '../logic/business';
 
 const NAMES = [
     'Abdullah', 'Luciano', 'Oliver', 'Cezar', 'Julio', 'Alejandro',
     'Andres', 'Oscar', 'Sahil', 'Catherine', 'Anna', 'Omer',
     'Alvaro', 'David', 'Ivan', 'Kate', 'Carina', 'Francisco',
 ];
-
-class Business {
-    constructor() {
-        this.name = 'Big Co. Inc';
-        this.funds = 100;
-    }
-
-    addFunds(inc) {
-        this.funds += inc;
-    }
-
-    takeFunds(dec) {
-        this.funds -= dec;
-    }
-
-    getFunds() {
-        return Math.floor(this.funds);
-    }
-}
 
 const getObjects = (map, type) => map.filterObjects('Objects', o => {
     const typeProp = o.properties.find(p => p.name === 'type') || {};
@@ -63,8 +46,8 @@ export default class PlatformerScene extends Phaser.Scene {
     }
 
     create() {
+        this.cameras.main.scrollY = -TILE_DIMENSION*2;
         this.business = new Business();
-        this.employeeCost = 50;
 
         this.map = this.make.tilemap({ key: 'map' });
         this.tileset = this.map.addTilesetImage('Dungeon_Tileset');
@@ -119,23 +102,17 @@ export default class PlatformerScene extends Phaser.Scene {
     }
 
     buildUi() {
-        this.infoBox = this.add
-            .text(4, 4, '', {
-                font: '12px monospace',
-                fill: '#fff',
-                backgroundColor: 'rgba(0, 0, 0, 0.4)',
-            })
-            .setScrollFactor(0)
-            .setDepth(999);
+        this.infoBox = new Text(this, 4, 4);
+        this.add.existing(this.infoBox);
 
-        this.hireButton = new Button(this, 4, 300, `Hire Employee ($${this.employeeCost})`, () => this.hireEmployee());
+        this.hireButton = new Button(this, 160, 4, `Hire ($${this.business.employeeCost})`, () => this.hireEmployee());
         this.add.existing(this.hireButton);
     }
 
     hireEmployee() {
-        if (this.business.getFunds() > this.employeeCost) {
+        if (this.business.getFunds() > this.business.employeeCost) {
             const added =  this.addEmployee();
-            if (added) this.business.takeFunds(this.employeeCost);
+            if (added) this.business.takeFunds(this.business.employeeCost);
         }
     }
 

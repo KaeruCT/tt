@@ -3,11 +3,11 @@ import Employee from '../sprites/Employee';
 import { createFinder, createGrid } from '../utils/path';
 import { randValue, randBool } from '../utils/rand';
 import { snap, SKIN_COLORS } from '../utils/misc';
-import { RELIEF_TYPES } from '../utils/relief';
+import { RELIEF_TYPES } from '../logic/relief';
 import Button from '../ui/Button';
 
 const NAMES = [
-    'Abdullah', 'Luciano', 'Olivthis.er', 'Cezar', 'Julio', 'Alejandro',
+    'Abdullah', 'Luciano', 'Oliver', 'Cezar', 'Julio', 'Alejandro',
     'Andres', 'Oscar', 'Sahil', 'Catherine', 'Anna', 'Omer',
     'Alvaro', 'David', 'Ivan', 'Kate', 'Carina', 'Francisco',
 ];
@@ -128,9 +128,7 @@ export default class PlatformerScene extends Phaser.Scene {
             .setScrollFactor(0)
             .setDepth(999);
 
-        this.hireButton = new Button(this, 4, 300, `Hire Employee ($${this.employeeCost})`, () => this.hireEmployee())
-            .setScrollFactor(0)
-            .setDepth(999);
+        this.hireButton = new Button(this, 4, 300, `Hire Employee ($${this.employeeCost})`, () => this.hireEmployee());
         this.add.existing(this.hireButton);
     }
 
@@ -165,7 +163,7 @@ export default class PlatformerScene extends Phaser.Scene {
                 e.triggerRestroomAttempt(this.findReliefPoint.bind(this));
             }
 
-            if (e.relief && e.reliefAttempts) {
+            if (e.relief && e.relief.attempts) {
                 // somebody wasn't able to go, needs to check restroom again
                 if (t % 50 === 0 && randBool(0.5)) {
                     e.triggerRestroomAttempt(this.findReliefPoint.bind(this));

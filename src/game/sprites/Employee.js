@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { TILE_DIMENSION } from '../utils/misc';
 import { randRange } from '../utils/rand';
+import { Relief } from '../logic/relief';
 
 export default class Employee extends Phaser.GameObjects.Sprite {
     constructor(scene, meta, x, y, pathFinder) {
@@ -17,12 +18,9 @@ export default class Employee extends Phaser.GameObjects.Sprite {
         this.tint = meta.tint;
         this.working = true;
         this.reliefPoint = null;
-        this.reliefInProgress = false;
-        this.reliefExpirationTime = 0;
-        this.reliefAttempts = 0;
+        this.nextReliefMinTime = 0;
         this.relief = null;
         this.time = 0;
-        this.nextReliefMinTime = 0;
 
         const { anims } = this.scene;
         anims.create({
@@ -85,38 +83,30 @@ export default class Employee extends Phaser.GameObjects.Sprite {
     }
 
     setRelief(relief) {
-        const { meta } = this;
-        if (relief) {
-            console.log('Employee', meta.name, 'needs to', relief.id);
-        } else if (this.relief) {
-            this.nextReliefMinTime = this.time + this.relief.cooldown * 1000;
+        if (!relief) {
+            this.relief = null;
+            return;
         }
-        this.relief = relief;
-        this.reliefExpirationTime = 0;
-        this.reliefAttempts = 0;
+
+        this.relief = new Relief(relief, this.time, () => {
+            console.log('Employee', this.meta.name, 'started to', relief.id);
+        }, () => {
+            this.nextReliefMinTime = this.time + relief.cooldown * 1000;
+            console.log('Employee', this.meta.name, 'finished', relief.id);
+            this.setRelief(null);
+            this.goToDesk();
+        });
     }
 
     startToRelieve() {
-        const { reliefPoint, relief, meta } = this;
+        const { relief, reliefPoint } = this;
 
         if (!relief) return;
-
-        if (reliefPoint) reliefPoint.busy = true;
-        this.reliefInProgress = true;
-        const { min, max } = relief.time;
-        const reliefTime = randRange(min * 1000, max * 1000);
-        console.log('Employee', meta.name, 'started to', relief.id, `(${reliefTime})`);
-        setTimeout(() => {
-            console.log('Employee', meta.name, 'finished', relief.id, `(${reliefTime})`);
-            if (reliefPoint) reliefPoint.busy = false;
-            this.reliefInProgress = false;
-            this.setRelief(null);
-            this.goToDesk();
-        }, reliefTime);
+        this.relief.release(reliefPoint);
     }
 
     giveUp() {
-        this.reliefAttempts++;
+        this.relief.attempted();
         this.goToDesk();
     }
 
@@ -206,15 +196,9 @@ export default class Employee extends Phaser.GameObjects.Sprite {
             }
         }
 
-        if (relief) {
-            if (!this.reliefExpirationTime) {
-                const { limit } = this.relief;
-                this.reliefExpirationTime = time + randRange(limit.min, limit.max) * 1000;
-            }
-            if (time > this.reliefExpirationTime) {
-                console.log('Oh no! Employee', meta.name, 'could not hold their', relief.id);
-                this.setRelief(null);
-            }
+        if (this.relief && this.relief.expirationTime && time > this.relief.reliefExpirationTime) {
+            console.log('Oh no! Employee', meta.name, 'could not hold their', relief.id);
+            this.setRelief(null);
         }
     }
 }

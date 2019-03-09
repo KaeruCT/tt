@@ -46,7 +46,7 @@ export default class PlatformerScene extends Phaser.Scene {
     }
 
     create() {
-        this.cameras.main.scrollY = -TILE_DIMENSION*2;
+        this.cameras.main.scrollY = -TILE_DIMENSION * 2;
         this.business = new Business();
 
         this.map = this.make.tilemap({ key: 'map' });
@@ -97,32 +97,33 @@ export default class PlatformerScene extends Phaser.Scene {
         this.employees.add(e);
         e.body.setCollideWorldBounds(true);
         p.taken = true;
+        this.business.addEmployee();
 
         return true;
     }
 
     buildUi() {
-        this.infoBox = new Text(this, 4, 4);
-        this.add.existing(this.infoBox);
+        this.fundsBox = new Text(this, 20, 4);
+        this.add.existing(this.fundsBox);
 
         this.hireButton = new Button(this, 160, 4, `Hire ($${this.business.employeeCost})`, () => this.hireEmployee());
         this.add.existing(this.hireButton);
+
+        this.graphics = this.add.graphics()
+            .setScrollFactor(0)
+            .setDepth(999)
     }
 
     hireEmployee() {
         if (this.business.getFunds() > this.business.employeeCost) {
-            const added =  this.addEmployee();
+            const added = this.addEmployee();
             if (added) this.business.takeFunds(this.business.employeeCost);
         }
     }
 
     findReliefPoint(type) {
         return randValue(this.reliefPoints.filter(p => p.supports.includes(type)));
-    };  
-
-    getInfoText() {
-        return `Funds: $${this.business.getFunds()}`;
-    }
+    };
 
     update(time, delta) {
         const t = Math.floor(time * 100);
@@ -159,7 +160,26 @@ export default class PlatformerScene extends Phaser.Scene {
             c.setDepth(c.y);
         });
 
+        this.updateUi();
+
         this.business.addFunds(fundIncrement);
-        this.infoBox.setText(this.getInfoText());
+        this.business.passTime(delta);
+    }
+
+    updateUi() {
+        const { currentTime, dayLength } = this.business;
+        this.fundsBox.setText(`Funds: $${this.business.getFunds()}`);
+
+        const dayCompletion = dayLength - currentTime / dayLength;
+        const rad = 6;
+        const cx = 12;
+        const cy = 12;
+        this.graphics.clear();
+        this.graphics.fillStyle(0x444444, 1);
+        this.graphics.fillEllipse(cx, cy, rad*2, rad*2);
+        this.graphics.lineStyle(2, 0xcccccc, 1);
+        this.graphics.beginPath();
+        this.graphics.arc(cx, cy, rad, Phaser.Math.DegToRad(270), Phaser.Math.DegToRad(270 + dayCompletion * 360), true);
+        this.graphics.strokePath();
     }
 }

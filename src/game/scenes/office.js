@@ -95,8 +95,8 @@ export default class PlatformerScene extends Phaser.Scene {
             name: randValue(NAMES),
             desk: {
                 meta: { id: 'desk' },
-                x: snap(p.x),
-                y: snap(p.y),
+                x: p.x,
+                y: p.y,
             },
             tint: SKIN_COLORS[i % SKIN_COLORS.length]
         };

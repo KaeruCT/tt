@@ -60,11 +60,12 @@ export default class Employee extends Phaser.GameObjects.Sprite {
 
     updatePathFinder() {
         const p = this.scene.worldLayer.worldToTileXY(this.x, this.y);
+        const d = this.scene.worldLayer.worldToTileXY(this.destination.x, this.destination.y);
         this.pathFinder.findPath(
             p.x,
             p.y,
-            this.destination.x,
-            this.destination.y,
+            d.x,
+            d.y,
             this.onPathUpdate.bind(this)
         );
     }
@@ -128,7 +129,7 @@ export default class Employee extends Phaser.GameObjects.Sprite {
         
         this.setDestination(reliefPoint).then(destination => {
             if (destination.busy) {
-                console.log(this.meta.name, 'went to', destination.id, 'but it was busy');
+                console.log(this.meta.name, 'went to', destination.meta.id, 'but it was busy');
                 this.giveUp();
             } else {
                 this.startToRelieve();
@@ -186,10 +187,11 @@ export default class Employee extends Phaser.GameObjects.Sprite {
         }
 
         if (destination) {
-            if (current.x === destination.x && current.y === destination.y) {
+            const d = scene.worldLayer.worldToTileXY(destination.x, destination.y);
+            if (current.x === d.x && current.y === d.y) {
                 this.onDestinationSuccess && this.onDestinationSuccess(this.destination);
                 this.destination = null;
-                console.log('Employee', meta.name, 'arrived to', destination.id);
+                console.log('Employee', meta.name, 'arrived to', destination.meta.id);
             } else {
                 pathFinder.calculate();
             }

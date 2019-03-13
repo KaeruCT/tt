@@ -7,6 +7,7 @@ import { RELIEF_TYPES } from '../logic/relief';
 import Button from '../ui/Button';
 import Text from '../ui/Text';
 import { Business } from '../logic/business';
+import ReliefPoint from '../sprites/ReliefPoint';
 
 const NAMES = [
     'Abdullah', 'Luciano', 'Oliver', 'Cezar', 'Julio', 'Alejandro',
@@ -19,18 +20,6 @@ const getObjects = (map, type) => map.filterObjects('Objects', o => {
     return typeProp.value === type;
 });
 
-const createReliefPoint = (p, supports) => {
-    const x = snap(p.x);
-    const y = snap(p.y);
-    return {
-        id: `${x}-${y}-${supports.join(',')}`,
-        x,
-        y,
-        supports,
-        busy: false,
-    }
-};
-
 const getEmployeesCoords = (employees, exclude) => {
     return employees.getChildren().filter(e => e !== exclude).map(e => ({
         x: snap(e.x),
@@ -42,6 +31,7 @@ export default class PlatformerScene extends Phaser.Scene {
     preload() {
         this.load.image('Dungeon_Tileset', 'assets/2d/tileset/Dungeon_Tileset.png');
         this.load.spritesheet('employee', 'assets/2d/char.png', { frameWidth: 16, frameHeight: 16 });
+        this.load.spritesheet('relief_point', 'assets/2d/relief.png', { frameWidth: 16, frameHeight: 16 });
         this.load.tilemapTiledJSON('map', 'assets/maps/2.json');
     }
 
@@ -64,9 +54,8 @@ export default class PlatformerScene extends Phaser.Scene {
         this.peePoints = getObjects(this.map, RELIEF_TYPES.pee.id);
         this.pooPoints = getObjects(this.map, RELIEF_TYPES.poo.id);
 
-        this.reliefPoints = [];
-        this.peePoints.forEach(p => this.reliefPoints.push(createReliefPoint(p, [RELIEF_TYPES.pee.id])));
-        this.pooPoints.forEach(p => this.reliefPoints.push(createReliefPoint(p, [RELIEF_TYPES.poo.id, RELIEF_TYPES.pee.id])));
+        this.reliefPoints = this.add.group();
+        this.addReliefPoint(RELIEF_TYPES.poo); // start with one poo point
 
         this.employees = this.add.group();
 
@@ -74,6 +63,26 @@ export default class PlatformerScene extends Phaser.Scene {
         for (let i = 0; i < initialEmployees; i++) {
             this.addEmployee();
         }
+    }
+
+    addReliefPoint(reliefType) {
+        const points = reliefType === RELIEF_TYPES.poo ? this.pooPoints : this.peePoints;
+        const emptySlots = points.filter(p => !p.taken);
+        if (!emptySlots.length) return false;
+
+        const p = emptySlots[0];
+        const pointId = this.reliefPoints.getChildren().length;
+        const { supported, id } = reliefType;
+        const reliefPoint = new ReliefPoint(this, {
+            id: `${pointId}-${supported.join(',')}`,
+            supported,
+            type: id,
+            busy: false,
+        }, p.x, p.y);
+        this.reliefPoints.add(reliefPoint);
+        p.taken = true;
+
+        return true;
     }
 
     addEmployee() {
@@ -85,7 +94,7 @@ export default class PlatformerScene extends Phaser.Scene {
         const meta = {
             name: randValue(NAMES),
             desk: {
-                id: 'desk',
+                meta: { id: 'desk' },
                 x: snap(p.x),
                 y: snap(p.y),
             },
@@ -122,7 +131,7 @@ export default class PlatformerScene extends Phaser.Scene {
     }
 
     findReliefPoint(type) {
-        return randValue(this.reliefPoints.filter(p => p.supports.includes(type)));
+        return randValue(this.reliefPoints.getChildren().filter(p => p.meta.supported.includes(type)));
     };
 
     update(time, delta) {

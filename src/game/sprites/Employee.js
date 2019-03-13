@@ -1,6 +1,5 @@
 import Phaser from 'phaser';
 import { TILE_DIMENSION } from '../utils/misc';
-import { randRange } from '../utils/rand';
 import { Relief } from '../logic/relief';
 
 export default class Employee extends Phaser.GameObjects.Sprite {
@@ -75,10 +74,10 @@ export default class Employee extends Phaser.GameObjects.Sprite {
         if (path !== null) {    
             path.shift(); // first path coordinates are the starting point
             this.path = path;
-            console.log('Employee', meta.name, 'going to', destination.id);
+            console.log('Employee', meta.name, 'going to', destination.meta.id);
         } else {
             path = [];
-            console.log('Employee', meta.name, 'could not find a path to', destination.id);
+            console.log('Employee', meta.name, 'could not find a path to', destination.meta.id);
         }
     }
 

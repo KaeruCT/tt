@@ -5,6 +5,7 @@ const RELIEF_POO = {
     time: { min: 5, max: 15 },
     limit: { min: 30, max: 60 },
     cooldown: 20,
+    supported: ['pee', 'poo'],
 };
 
 const RELIEF_PEE = {
@@ -12,6 +13,7 @@ const RELIEF_PEE = {
     time: { min: 1, max: 4 },
     limit: { min: 20, max: 40 },
     cooldown: 10,
+    supported: ['pee'],
 };
 
 export const RELIEF_TYPES = {

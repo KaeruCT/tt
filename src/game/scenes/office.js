@@ -8,6 +8,7 @@ import Button from '../ui/Button';
 import Text from '../ui/Text';
 import { Business } from '../logic/business';
 import ReliefPoint from '../sprites/ReliefPoint';
+import { light } from '../ui/common';
 
 const NAMES = [
     'Abdullah', 'Luciano', 'Oliver', 'Cezar', 'Julio', 'Alejandro',
@@ -37,7 +38,7 @@ export default class PlatformerScene extends Phaser.Scene {
 
     create() {
         this.cameras.main.scrollY = -TILE_DIMENSION * 2;
-        this.business = new Business();
+        this.fundIncrement = 0;
 
         this.map = this.make.tilemap({ key: 'map' });
         this.tileset = this.map.addTilesetImage('Dungeon_Tileset');
@@ -50,12 +51,13 @@ export default class PlatformerScene extends Phaser.Scene {
 
         this.buildUi();
 
+        this.business = new Business({ onFundsChange: this.onFundsChange.bind(this) });
         this.deskPoints = getObjects(this.map, 'desk');
         this.peePoints = getObjects(this.map, RELIEF_TYPES.pee.id);
         this.pooPoints = getObjects(this.map, RELIEF_TYPES.poo.id);
 
         this.reliefPoints = this.add.group();
-        this.addReliefPoint(RELIEF_TYPES.poo); // start with one poo point
+        this.addReliefPoint(RELIEF_TYPES.poo.id); // start with one poo point
 
         this.employees = this.add.group();
 
@@ -66,13 +68,13 @@ export default class PlatformerScene extends Phaser.Scene {
     }
 
     addReliefPoint(reliefType) {
-        const points = reliefType === RELIEF_TYPES.poo ? this.pooPoints : this.peePoints;
+        const points = reliefType === RELIEF_TYPES.poo.id ? this.pooPoints : this.peePoints;
         const emptySlots = points.filter(p => !p.taken);
         if (!emptySlots.length) return false;
 
         const p = emptySlots[0];
         const pointId = this.reliefPoints.getChildren().length;
-        const { supported, id } = reliefType;
+        const { supported, id } = RELIEF_TYPES[reliefType];
         const reliefPoint = new ReliefPoint(this, {
             id: `${pointId}-${supported.join(',')}`,
             supported,
@@ -115,12 +117,24 @@ export default class PlatformerScene extends Phaser.Scene {
         this.fundsBox = new Text(this, 20, 4);
         this.add.existing(this.fundsBox);
 
-        this.hireButton = new Button(this, 160, 4, `Hire ($${this.business.employeeCost})`, () => this.hireEmployee());
+        this.hireButton = new Button(this, 150, 4, ' + ', () => {
+            this.hireEmployee();
+        });
         this.add.existing(this.hireButton);
+
+        this.pissoirButton = new Button(this, 180, 4, 'PEE', () => {
+            this.buyReliefPoint(RELIEF_TYPES.pee.id);
+        });
+        this.add.existing(this.pissoirButton);
+
+        this.toiletButton = new Button(this, 210, 4, 'POO', () => {
+            this.buyReliefPoint(RELIEF_TYPES.poo.id);
+        });
+        this.add.existing(this.toiletButton);
 
         this.graphics = this.add.graphics()
             .setScrollFactor(0)
-            .setDepth(999)
+            .setDepth(999);
     }
 
     hireEmployee() {
@@ -130,13 +144,35 @@ export default class PlatformerScene extends Phaser.Scene {
         }
     }
 
+    buyReliefPoint(type) {
+        const cost = this.business.getFacilityCost(type);
+        if (this.business.getFunds() > cost) {
+            const added = this.addReliefPoint(type);
+            if (added) this.business.takeFunds(cost);
+        }
+    }
+
     findReliefPoint(type) {
         return randValue(this.reliefPoints.getChildren().filter(p => p.meta.supported.includes(type)));
-    };
+    }
+
+    onFundsChange(amount) {
+        const positive = amount > 0 ? '+' : '';
+        const dist = 10;
+        const style = { ...light, fill: positive ? '#6f6' : '#f66' };
+        const text = new Text(this, this.fundsBox.x + 8, this.fundsBox.y + (positive ? dist : 0), `${positive}$${amount}`, style);
+        this.add.existing(text);
+
+        this.tweens.add({
+            targets: text,
+            y: this.fundsBox.y + (positive ? 0 : dist),
+            onComplete: () => text.destroy(),
+            duration: 300,
+        });
+    }
 
     update(time, delta) {
         const t = Math.floor(time * 100);
-        let fundIncrement = 0;
 
         this.employees.getChildren().forEach(e => {
             if (t % 10 === 0) {
@@ -150,7 +186,7 @@ export default class PlatformerScene extends Phaser.Scene {
                 e.triggerRestroomAttempt(this.findReliefPoint.bind(this));
             }
 
-            if (e.relief && e.relief.attempts) {
+            if (t % 100 === 0 && e.relief && e.relief.attempts && randBool(0.5)) {
                 // somebody wasn't able to go, needs to check restroom again
                 if (t % 50 === 0 && randBool(0.5)) {
                     e.triggerRestroomAttempt(this.findReliefPoint.bind(this));
@@ -160,7 +196,7 @@ export default class PlatformerScene extends Phaser.Scene {
             e.update(time);
 
             if (e.working) {
-                fundIncrement += delta / 1000;
+                this.fundIncrement += delta / 1000;
             }
         });
 
@@ -171,13 +207,18 @@ export default class PlatformerScene extends Phaser.Scene {
 
         this.updateUi();
 
-        this.business.addFunds(fundIncrement);
+        if (this.fundIncrement > 1) {
+            const trunc = Math.trunc(this.fundIncrement);
+            this.business.addFunds(trunc);
+            this.fundIncrement -= trunc;
+        }
+
         this.business.passTime(delta);
     }
 
     updateUi() {
         const { currentTime, dayLength } = this.business;
-        this.fundsBox.setText(`Funds: $${this.business.getFunds()}`);
+        this.fundsBox.setText(`${this.business.getFormattedFunds()}`);
 
         const dayCompletion = dayLength - currentTime / dayLength;
         const rad = 6;
@@ -185,7 +226,7 @@ export default class PlatformerScene extends Phaser.Scene {
         const cy = 12;
         this.graphics.clear();
         this.graphics.fillStyle(0x444444, 1);
-        this.graphics.fillEllipse(cx, cy, rad*2, rad*2);
+        this.graphics.fillEllipse(cx, cy, rad * 2, rad * 2);
         this.graphics.lineStyle(2, 0xcccccc, 1);
         this.graphics.beginPath();
         this.graphics.arc(cx, cy, rad, Phaser.Math.DegToRad(270), Phaser.Math.DegToRad(270 + dayCompletion * 360), true);

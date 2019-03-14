@@ -17,8 +17,8 @@ const RELIEF_PEE = {
 };
 
 export const RELIEF_TYPES = {
-    poo: RELIEF_POO,
-    pee: RELIEF_PEE,
+    [RELIEF_POO.id]: RELIEF_POO,
+    [RELIEF_PEE.id]: RELIEF_PEE,
 };
 
 export class Relief {
@@ -40,7 +40,7 @@ export class Relief {
 
         if (!relief) return;
 
-        if (reliefPoint) reliefPoint.busy = true;
+        if (reliefPoint) reliefPoint.meta.busy = true;
         this.onStart();
         this.inProgress = true;
 
@@ -48,8 +48,7 @@ export class Relief {
         const reliefTime = randRange(min * 1000, max * 1000);
 
         setTimeout(() => {
-            
-            if (reliefPoint) reliefPoint.busy = false;
+            if (reliefPoint) reliefPoint.meta.busy = false;
             this.reliefInProgress = false;
             this.onFinish();
         }, reliefTime);

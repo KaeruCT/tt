@@ -128,7 +128,7 @@ export default class Employee extends Phaser.GameObjects.Sprite {
         }
         
         this.setDestination(reliefPoint).then(destination => {
-            if (destination.busy) {
+            if (destination.meta.busy) {
                 console.log(this.meta.name, 'went to', destination.meta.id, 'but it was busy');
                 this.giveUp();
             } else {

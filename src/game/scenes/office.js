@@ -22,9 +22,10 @@ const getObjects = (map, type) => map.filterObjects('Objects', o => {
 });
 
 const getEmployeesCoords = (employees, exclude) => {
-    return employees.getChildren().filter(e => e !== exclude).map(e => ({
+    return employees.getChildren().map(e => ({
         x: snap(e.x),
         y: snap(e.y),
+        ignore: exclude === e
     }));
 };
 
@@ -61,7 +62,7 @@ export default class PlatformerScene extends Phaser.Scene {
 
         this.employees = this.add.group();
 
-        const initialEmployees = 2;
+        const initialEmployees = 8; // 2;
         for (let i = 0; i < initialEmployees; i++) {
             this.addEmployee();
         }
@@ -175,10 +176,12 @@ export default class PlatformerScene extends Phaser.Scene {
         const t = Math.floor(time * 100);
 
         this.employees.getChildren().forEach(e => {
-            if (t % 10 === 0) {
+            if (t % 100 === 0) {
                 // update path finder (not so often)
                 e.pathFinder.setGrid(createGrid(this.map, 'World', getEmployeesCoords(this.employees, e)));
             }
+
+            const reliefInProgress = e.relief && e.relief.inProgress
 
             if (t % 100 === 0 && !e.relief && time > e.nextReliefMinTime && randBool(0.2)) {
                 // somebody has to go...
@@ -186,11 +189,9 @@ export default class PlatformerScene extends Phaser.Scene {
                 e.triggerRestroomAttempt(this.findReliefPoint.bind(this));
             }
 
-            if (t % 100 === 0 && e.relief && e.relief.attempts && randBool(0.5)) {
+            if (t % 100 === 0 && e.relief && !reliefInProgress && e.relief.shouldAttemptAgain(t)) {
                 // somebody wasn't able to go, needs to check restroom again
-                if (t % 50 === 0 && randBool(0.5)) {
-                    e.triggerRestroomAttempt(this.findReliefPoint.bind(this));
-                }
+                e.triggerRestroomAttempt(this.findReliefPoint.bind(this));
             }
 
             e.update(time);

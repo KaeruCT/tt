@@ -1,4 +1,4 @@
-import { RELIEF_TYPES } from "./relief";
+import { RELIEF_TYPES } from './relief';
 
 export class Business {
     constructor({ onFundsChange }) {
@@ -7,7 +7,7 @@ export class Business {
         this.employees = 0;
         this.employeeSalary = 10;
         this.employeeCost = 50;
-        this.dayLength = 30;
+        this.dayLength = 60;
         this.currentTime = 0;
         this.currentDay = 0;
         this.facilityCost = {

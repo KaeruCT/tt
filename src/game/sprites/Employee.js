@@ -106,7 +106,7 @@ export default class Employee extends Phaser.GameObjects.Sprite {
     }
 
     giveUp() {
-        this.relief.attempted();
+        this.relief.attempted(this.time);
         this.goToDesk();
     }
 

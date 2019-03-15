@@ -4,7 +4,8 @@ const RELIEF_POO = {
     id: 'poo',
     time: { min: 5, max: 15 },
     limit: { min: 30, max: 60 },
-    cooldown: 20,
+    cooldown: 30,
+    attemptCooldown: 20,
     supported: ['pee', 'poo'],
 };
 
@@ -12,7 +13,8 @@ const RELIEF_PEE = {
     id: 'pee',
     time: { min: 1, max: 4 },
     limit: { min: 20, max: 40 },
-    cooldown: 10,
+    cooldown: 20,
+    attemptCooldown: 15,
     supported: ['pee'],
 };
 
@@ -30,6 +32,7 @@ export class Relief {
         this.relief = relief;
         this.onStart = onStart;
         this.onFinish = onFinish;
+        this.lastAttemptTime = time;
 
         const { limit } = relief;
         this.reliefExpirationTime = time + randRange(limit.min, limit.max) * 1000;
@@ -39,6 +42,7 @@ export class Relief {
         const { relief } = this;
 
         if (!relief) return;
+        if (this.inProgress) return;
 
         if (reliefPoint) reliefPoint.meta.busy = true;
         this.onStart();
@@ -54,7 +58,12 @@ export class Relief {
         }, reliefTime);
     }
 
-    attempted() {
+    attempted(time) {
         this.attempts++;
+        this.lastAttemptTime = time;
+    }
+
+    shouldAttemptAgain(currentTime) {
+        return currentTime > this.lastAttemptTime + this.relief.attemptCooldown * 1000
     }
 }

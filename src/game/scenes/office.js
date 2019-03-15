@@ -62,7 +62,7 @@ export default class PlatformerScene extends Phaser.Scene {
 
         this.employees = this.add.group();
 
-        const initialEmployees = 8; // 2;
+        const initialEmployees = 2;
         for (let i = 0; i < initialEmployees; i++) {
             this.addEmployee();
         }

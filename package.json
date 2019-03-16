@@ -7,7 +7,7 @@
     "start": "webpack-dev-server --config webpack.dev.js --mode development",
     "build": "webpack --config webpack.prod.js --mode production",
     "preview": "npm run build && http-server dist",
-    "push": "npm run build && cd dist && git add --force --all && git commit -am \"Build output as of $(git log '--format=format:%H' master -1)\" && cd .. && git push origin `git subtree split --prefix dist master`:gh-pages --force"
+    "push": "npm run build && cd dist && git add --force --all . && git commit -am \"Build output as of $(git log '--format=format:%H' master -1)\" && cd .. && git push origin `git subtree split --prefix dist master`:gh-pages --force"
   },
   "author": "Andres Villarreal",
   "license": "ISC",

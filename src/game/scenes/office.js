@@ -40,6 +40,7 @@ export default class PlatformerScene extends Phaser.Scene {
     }
 
     create() {
+        this.t = 0;
         this.cameras.main.scrollY = -TILE_DIMENSION * 2;
         this.fundIncrement = 0;
 
@@ -169,8 +170,9 @@ export default class PlatformerScene extends Phaser.Scene {
     }
 
     update(time, delta) {
+        this.t++;
         this.employees.getChildren().forEach(e => {
-            const t = Math.floor(time * 100 + e.seed * 100);
+            const t = this.t + Math.floor(e.seed * 1000);
             if (t % 100 === 0) {
                 // update path finder (not so often)
                 e.pathFinder.setGrid(createGrid(this.map, 'World', getEmployeesCoords(this.employees, e)));

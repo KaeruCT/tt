@@ -137,22 +137,16 @@ export default class PlatformerScene extends Phaser.Scene {
     }
 
     hireEmployee() {
-        if (this.business.getFunds() > this.business.employeeCost) {
-            const added = this.addEmployee();
-            if (added) this.business.takeFunds(this.business.employeeCost);
-        }
+        this.business.doIfAffordable(() => this.addEmployee(), this.business.employeeCost);
     }
 
-    buyReliefPoint(type) {
-        const cost = this.business.getFacilityCost(type);
-        if (this.business.getFunds() > cost) {
-            const added = this.addReliefPoint(type);
-            if (added) this.business.takeFunds(cost);
-        }
+    buyReliefPoint(reliefId) {
+        const cost = this.business.getFacilityCost(reliefId);
+        this.business.doIfAffordable(() => this.addReliefPoint(reliefId), cost);
     }
 
-    findReliefPoint(type) {
-        return randValue(this.reliefPoints.getChildren().filter(p => p.supportsRelief(type)));
+    findReliefPoint(reliefId) {
+        return randValue(this.reliefPoints.getChildren().filter(p => p.supportsRelief(reliefId)));
     }
 
     onFundsChange(amount) {

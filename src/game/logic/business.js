@@ -14,6 +14,14 @@ export class Business {
             [RELIEF_TYPES.pee.id]: 100,
             [RELIEF_TYPES.poo.id]: 200,
         };
+        this.droppingCleanCost = {
+            [RELIEF_TYPES.pee.id]: 2,
+            [RELIEF_TYPES.poo.id]: 5,
+        };
+        this.facilityFixCost = {
+            [RELIEF_TYPES.pee.id]: 5,
+            [RELIEF_TYPES.poo.id]: 10,
+        };
         this.onFundsChange = onFundsChange;
     }
 
@@ -41,13 +49,28 @@ export class Business {
         return funds;
     }
 
-    getFacilityCost(type) {
-        return this.facilityCost[type];
+    getFacilityCost(reliefId) {
+        return this.facilityCost[reliefId];
+    }
+
+    getFacilityFixCost(reliefId) {
+        return this.facilityFixCost[reliefId];
+    }
+
+    getDroppingCleanCost(reliefId) {
+        return this.droppingCleanCost[reliefId];
     }
 
     paySalaries() {
         const total = this.employees * this.employeeSalary;
         this.takeFunds(total);
+    }
+
+    doIfAffordable(fn, cost) {
+        if (this.getFunds() > cost) {
+            const success = fn();
+            if (success) this.takeFunds(cost);
+        }
     }
 
     passTime(delta) {

@@ -3,12 +3,12 @@ import { RELIEF_TYPES } from '../logic/relief';
 import { randBool } from '../utils/rand';
 
 export default class ReliefPoint extends Phaser.GameObjects.Sprite {
-    constructor(scene, meta, type, supported, x, y) {
+    constructor(scene, meta, reliefId, supported, x, y) {
         super(scene, x, y, 'relief_point');
         scene.physics.world.enable(this);
         scene.add.existing(this);
         this.meta = meta;
-        this.type = type;
+        this.reliefId = reliefId;
         this.supported = supported;
         this.busy = false;
         this.broken = false;
@@ -59,8 +59,8 @@ export default class ReliefPoint extends Phaser.GameObjects.Sprite {
         this.updateAnimation();
     }
 
-    supportsRelief(type) {
-        return this.supported.includes(type);
+    supportsRelief(reliefId) {
+        return this.supported.includes(reliefId);
     }
 
     beginUsing() {
@@ -68,7 +68,7 @@ export default class ReliefPoint extends Phaser.GameObjects.Sprite {
     }
 
     stopUsing() {
-        const relief = RELIEF_TYPES[this.type];
+        const relief = RELIEF_TYPES[this.reliefId];
         this.busy = false;
         this.usages += 1;
         if (this.usages >= relief.minPointUsages && randBool(0.8)) {
@@ -79,12 +79,17 @@ export default class ReliefPoint extends Phaser.GameObjects.Sprite {
 
     startFixing() {
         if (this.fixing) return;
-        
-        const relief = RELIEF_TYPES[this.type];
 
-        this.fixing = true;
-        this.updateAnimation();
-        setTimeout(() => this.fix(), relief.fixPointTime * 1000);
+        const { business } = this.scene;
+        const cost = business.getFacilityFixCost(this.reliefId);
+        business.doIfAffordable(() => {
+            const relief = RELIEF_TYPES[this.reliefId];
+
+            this.fixing = true;
+            this.updateAnimation();
+            setTimeout(() => this.fix(), relief.fixPointTime * 1000);
+            return true;
+        }, cost);
     }
 
     fix() {
@@ -103,12 +108,12 @@ export default class ReliefPoint extends Phaser.GameObjects.Sprite {
     }
 
     getAnimation() {
-        const { type } = this;
+        const { reliefId } = this;
         let prefix;
-        if (type === RELIEF_TYPES.poo.id) {
+        if (reliefId === RELIEF_TYPES.poo.id) {
             prefix = 'toilet';
         }
-        if (type === RELIEF_TYPES.pee.id) {
+        if (reliefId === RELIEF_TYPES.pee.id) {
             prefix = 'pissoir';
         }
 

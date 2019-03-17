@@ -39,7 +39,7 @@ export class Relief {
         this.lastAttemptTime = time;
 
         const { limit } = relief;
-        this.reliefExpirationTime = time + randRange(limit.min, limit.max) * 1000;
+        this.expirationTime = time + randRange(limit.min, limit.max) * 1000;
     }
 
     release(reliefPoint) {

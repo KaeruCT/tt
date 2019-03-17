@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { TILE_DIMENSION } from '../utils/misc';
 import { Relief } from '../logic/relief';
+import Dropping from './Dropping';
 
 export default class Employee extends Phaser.GameObjects.Sprite {
     constructor(scene, meta, x, y, pathFinder) {
@@ -107,7 +108,7 @@ export default class Employee extends Phaser.GameObjects.Sprite {
     }
 
     giveUp() {
-        this.relief.attempted(this.time);
+        if (this.relief) this.relief.attempted(this.time);
         this.goToDesk();
     }
 
@@ -198,7 +199,8 @@ export default class Employee extends Phaser.GameObjects.Sprite {
             }
         }
 
-        if (this.relief && this.relief.expirationTime && time > this.relief.reliefExpirationTime) {
+        if (this.relief && this.relief.expirationTime && time > this.relief.expirationTime) {
+            new Dropping(this.scene, {}, this.relief.id, this.x, this.y);
             console.log('Oh no! Employee', meta.name, 'could not hold their', relief.id);
             this.setRelief(null);
         }

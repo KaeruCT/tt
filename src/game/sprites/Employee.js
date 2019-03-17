@@ -20,6 +20,7 @@ export default class Employee extends Phaser.GameObjects.Sprite {
         this.nextReliefMinTime = 0;
         this.relief = null;
         this.time = 0;
+        this.seed = Math.random();
 
         const { anims } = this.scene;
         anims.create({
@@ -128,7 +129,7 @@ export default class Employee extends Phaser.GameObjects.Sprite {
         }
         
         this.setDestination(reliefPoint).then(destination => {
-            if (destination.meta.busy) {
+            if (!destination.canUse()) {
                 console.log(this.meta.name, 'went to', destination.meta.id, 'but it was busy');
                 this.giveUp();
             } else {

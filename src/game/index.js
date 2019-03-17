@@ -8,7 +8,7 @@ const config = {
     backgroundColor: '#000',
     pixelArt: true,
     parent: 'game-container',
-    zoom: zoom,
+    zoom,
     physics: {
         default: 'arcade',
         arcade: { debug: false, gravity: { y: 0 } }

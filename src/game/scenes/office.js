@@ -62,7 +62,7 @@ export default class PlatformerScene extends Phaser.Scene {
 
         this.employees = this.add.group();
 
-        const initialEmployees = 2;
+        const initialEmployees = 8;
         for (let i = 0; i < initialEmployees; i++) {
             this.addEmployee();
         }
@@ -78,10 +78,7 @@ export default class PlatformerScene extends Phaser.Scene {
         const { supported, id } = RELIEF_TYPES[reliefType];
         const reliefPoint = new ReliefPoint(this, {
             id: `${pointId}-${supported.join(',')}`,
-            supported,
-            type: id,
-            busy: false,
-        }, p.x, p.y);
+        }, id, supported, p.x, p.y);
         this.reliefPoints.add(reliefPoint);
         p.taken = true;
 
@@ -98,6 +95,7 @@ export default class PlatformerScene extends Phaser.Scene {
             name: randValue(NAMES),
             desk: {
                 meta: { id: 'desk' },
+                canUse: () => true,
                 x: p.x,
                 y: p.y,
             },
@@ -154,7 +152,7 @@ export default class PlatformerScene extends Phaser.Scene {
     }
 
     findReliefPoint(type) {
-        return randValue(this.reliefPoints.getChildren().filter(p => p.meta.supported.includes(type)));
+        return randValue(this.reliefPoints.getChildren().filter(p => p.supportsRelief(type)));
     }
 
     onFundsChange(amount) {
@@ -173,25 +171,24 @@ export default class PlatformerScene extends Phaser.Scene {
     }
 
     update(time, delta) {
-        const t = Math.floor(time * 100);
-
         this.employees.getChildren().forEach(e => {
+            const t = Math.floor(time * 100 + e.seed * 100);
             if (t % 100 === 0) {
                 // update path finder (not so often)
                 e.pathFinder.setGrid(createGrid(this.map, 'World', getEmployeesCoords(this.employees, e)));
-            }
 
-            const reliefInProgress = e.relief && e.relief.inProgress
+                const reliefInProgress = e.relief && e.relief.inProgress;
 
-            if (t % 100 === 0 && !e.relief && time > e.nextReliefMinTime && randBool(0.2)) {
-                // somebody has to go...
-                e.setRelief(randBool() ? RELIEF_TYPES.pee : RELIEF_TYPES.poo);
-                e.triggerRestroomAttempt(this.findReliefPoint.bind(this));
-            }
+                if (!e.relief && time > e.nextReliefMinTime && randBool(0.1)) {
+                    // somebody has to go...
+                    e.setRelief(randBool() ? RELIEF_TYPES.pee : RELIEF_TYPES.poo);
+                    e.triggerRestroomAttempt(this.findReliefPoint.bind(this));
+                }
 
-            if (t % 100 === 0 && e.relief && !reliefInProgress && e.relief.shouldAttemptAgain(t)) {
-                // somebody wasn't able to go, needs to check restroom again
-                e.triggerRestroomAttempt(this.findReliefPoint.bind(this));
+                if (t % 500 === 0 && e.relief && !reliefInProgress && e.relief.shouldAttemptAgain(t)) {
+                    // somebody wasn't able to go, needs to check restroom again
+                    e.triggerRestroomAttempt(this.findReliefPoint.bind(this));
+                }
             }
 
             e.update(time);

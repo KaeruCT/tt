@@ -7,6 +7,8 @@ const RELIEF_POO = {
     cooldown: 30,
     attemptCooldown: 20,
     supported: ['pee', 'poo'],
+    minPointUsages: 3,
+    fixPointTime: 5,
 };
 
 const RELIEF_PEE = {
@@ -16,6 +18,8 @@ const RELIEF_PEE = {
     cooldown: 20,
     attemptCooldown: 15,
     supported: ['pee'],
+    minPointUsages: 5,
+    fixPointTime: 3,
 };
 
 export const RELIEF_TYPES = {
@@ -44,7 +48,7 @@ export class Relief {
         if (!relief) return;
         if (this.inProgress) return;
 
-        if (reliefPoint) reliefPoint.meta.busy = true;
+        if (reliefPoint) reliefPoint.beginUsing();
         this.onStart();
         this.inProgress = true;
 
@@ -52,7 +56,7 @@ export class Relief {
         const reliefTime = randRange(min * 1000, max * 1000);
 
         setTimeout(() => {
-            if (reliefPoint) reliefPoint.meta.busy = false;
+            if (reliefPoint) reliefPoint.stopUsing();
             this.reliefInProgress = false;
             this.onFinish();
         }, reliefTime);

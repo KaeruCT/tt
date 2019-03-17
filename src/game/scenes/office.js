@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import Employee from '../sprites/Employee';
 import { createFinder, createGrid } from '../utils/path';
 import { randValue, randBool } from '../utils/rand';
-import { snap, SKIN_COLORS, TILE_DIMENSION } from '../utils/misc';
+import { snap, SKIN_COLORS, CLOTHES_COLORS, HAIR_COLORS, TILE_DIMENSION } from '../utils/misc';
 import { RELIEF_TYPES } from '../logic/relief';
 import Button from '../ui/Button';
 import Text from '../ui/Text';
@@ -33,6 +33,8 @@ export default class PlatformerScene extends Phaser.Scene {
     preload() {
         this.load.image('Dungeon_Tileset', 'assets/2d/tileset/Dungeon_Tileset.png');
         this.load.spritesheet('employee', 'assets/2d/char.png', { frameWidth: 16, frameHeight: 16 });
+        this.load.spritesheet('hair', 'assets/2d/hair.png', { frameWidth: 16, frameHeight: 16 });
+        this.load.spritesheet('clothes', 'assets/2d/clothes.png', { frameWidth: 16, frameHeight: 16 });
         this.load.spritesheet('relief_point', 'assets/2d/relief.png', { frameWidth: 16, frameHeight: 16 });
         this.load.tilemapTiledJSON('map', 'assets/maps/2.json');
     }
@@ -62,7 +64,7 @@ export default class PlatformerScene extends Phaser.Scene {
 
         this.employees = this.add.group();
 
-        const initialEmployees = 8;
+        const initialEmployees = 1;
         for (let i = 0; i < initialEmployees; i++) {
             this.addEmployee();
         }
@@ -99,7 +101,9 @@ export default class PlatformerScene extends Phaser.Scene {
                 x: p.x,
                 y: p.y,
             },
-            tint: SKIN_COLORS[i % SKIN_COLORS.length]
+            tint: SKIN_COLORS[i % SKIN_COLORS.length],
+            hair: randValue(HAIR_COLORS),
+            clothes: randValue(CLOTHES_COLORS),
         };
         const e = new Employee(this, meta, p.x, p.y, createFinder(this.tileset));
         e.pathFinder.setGrid(createGrid(this.map, 'World', getEmployeesCoords(this.employees, e)));
@@ -107,7 +111,7 @@ export default class PlatformerScene extends Phaser.Scene {
         this.employees.add(e);
         e.body.setCollideWorldBounds(true);
         p.taken = true;
-        this.business.addEmployee();
+        this.business.addEmployee(e);
 
         return true;
     }
@@ -153,7 +157,7 @@ export default class PlatformerScene extends Phaser.Scene {
         const positive = amount > 0 ? '+' : '';
         const dist = 10;
         const style = { ...light, fill: positive ? '#6f6' : '#f66' };
-        const text = new Text(this, this.fundsBox.x + 8, this.fundsBox.y + (positive ? dist : 0), `${positive}$${amount}`, style);
+        const text = new Text(this, this.fundsBox.x + (positive ? 8 : 20), this.fundsBox.y + (positive ? dist : 0), `${positive}$${amount}`, style);
         this.add.existing(text);
 
         this.tweens.add({

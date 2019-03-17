@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { TILE_DIMENSION } from '../utils/misc';
 import { Relief } from '../logic/relief';
 import Dropping from './Dropping';
+import { Hair, Clothes } from './EmployeeDecorations';
 
 export default class Employee extends Phaser.GameObjects.Sprite {
     constructor(scene, meta, x, y, pathFinder) {
@@ -22,6 +23,13 @@ export default class Employee extends Phaser.GameObjects.Sprite {
         this.relief = null;
         this.time = 0;
         this.seed = Math.random();
+        this.sadness = 0;
+        this.sadnessLimit = 2;
+
+        this.decorations = [
+            new Hair(this, meta.hair),
+            new Clothes(this, meta.clothes),
+        ];
 
         const { anims } = this.scene;
         anims.create({
@@ -139,9 +147,15 @@ export default class Employee extends Phaser.GameObjects.Sprite {
         });
     };
 
+    quit() {
+        console.log('Employee', this.meta.name, 'quit!');
+        this.destroy();
+        this.business.employeeQuit(this);
+    }
+
     update(time) {
         this.time = time;
-        const { anims, scene, meta, pathFinder, speed, destination, path, body, relief } = this;
+        const { scene, meta, pathFinder, speed, destination, path, body, relief } = this;
         const dx = body.velocity.x ? (body.velocity.x > 0 ? -1 : 1) : 0;
         const dy = body.velocity.y ? (body.velocity.y > 0 ? -1 : 1) : 0;
         const current = scene.worldLayer.worldToTileXY(
@@ -177,15 +191,15 @@ export default class Employee extends Phaser.GameObjects.Sprite {
         }
 
         if (body.velocity.y < 0) {
-            anims.play('employee-up', true);
+            this.playAnimation('employee-up');
         } else if (body.velocity.y > 0) {
-            anims.play('employee-down', true);
+            this.playAnimation('employee-down');
         } else if (body.velocity.x < 0) {
-            anims.play('employee-left', true);
+            this.playAnimation('employee-left');
         } else if (body.velocity.x > 0) {
-            anims.play('employee-right', true);
+            this.playAnimation('employee-right');
         } else {
-            if (destination === null) anims.stop();
+            if (destination === null) this.stopAnimations();
         }
 
         if (destination) {
@@ -200,9 +214,31 @@ export default class Employee extends Phaser.GameObjects.Sprite {
         }
 
         if (this.relief && this.relief.expirationTime && time > this.relief.expirationTime) {
-            new Dropping(this.scene, {}, this.relief.id, this.x, this.y);
             console.log('Oh no! Employee', meta.name, 'could not hold their', relief.id);
+            this.sadness += 1;
+            new Dropping(this.scene, {}, this.relief.id, this.x, this.y);
             this.setRelief(null);
+
+            if (this.sadness >= this.sadnessLimit) {
+                this.quit();
+            }
         }
+
+        this.decorations.forEach(d => d.update());
+    }
+
+    playAnimation(name) {
+        this.anims.play(name, true);
+        this.decorations.forEach(d => d.anims.play(d.getAnimationName(name, 'employee'), true));
+    }
+    
+    stopAnimations() {
+        this.anims.stop();
+        this.decorations.forEach(d => d.anims.stop());
+    }
+
+    setDepth(depth) {
+        super.setDepth(depth);
+        this.decorations.forEach(d => d.setDepth(depth));
     }
 }

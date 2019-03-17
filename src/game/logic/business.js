@@ -25,8 +25,9 @@ export class Business {
         this.onFundsChange = onFundsChange;
     }
 
-    addEmployee() {
+    addEmployee(e) {
         this.employees += 1;
+        e.business = this;
     }
 
     addFunds(inc) {
@@ -71,6 +72,15 @@ export class Business {
             const success = fn();
             if (success) this.takeFunds(cost);
         }
+    }
+
+    employeeFired(e) {
+        this.employeeCost += 10;
+    }
+
+    employeeQuit(e) {
+        this.employeeCost += 20;
+        this.employeeSalary += 10;
     }
 
     passTime(delta) {

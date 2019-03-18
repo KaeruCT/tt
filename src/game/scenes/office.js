@@ -165,7 +165,6 @@ export default class PlatformerScene extends Phaser.Scene {
 
         this.fireButton = new Button(this, padding+1, 200, 'FIRE', () => {
             this.selectedEmployee.fire();
-            this.selectEmployee(null);
         }).setDepth(9999);
         this.add.existing(this.fireButton);
 
@@ -283,7 +282,7 @@ export default class PlatformerScene extends Phaser.Scene {
         let info = `${name}\n\nAge: ${age}\n\nHobbies:\n - ${hobbies.join('\n - ')}\n\n`;
         info += `Working: ${working ? 'yes' : 'no'}\n`;
         if (sadness) {
-            info += `Couldn't hold it ${sadness} time(s)`;
+            info += `Couldn't hold it ${sadness} time(s)\n`;
         }
         if (relief) {
             if (relief.inProgress) {

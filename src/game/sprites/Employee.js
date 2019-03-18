@@ -10,8 +10,6 @@ export default class Employee extends Phaser.GameObjects.Sprite {
         scene.physics.world.enable(this);
         scene.add.existing(this);
         this.setOrigin(0.5, 0.75);
-        this.setSize(12, 8);
-        this.body.setOffset(2, 8);
         this.speed = 100;
         this.meta = meta;
         this.path = [];
@@ -30,6 +28,9 @@ export default class Employee extends Phaser.GameObjects.Sprite {
             new Hair(this, meta.hair),
             new Clothes(this, meta.clothes),
         ];
+
+        this.setInteractive({ useHandCursor: true })
+            .on('pointerdown', () => this.scene.selectEmployee(this));
 
         const { anims } = this.scene;
         anims.create({
@@ -69,8 +70,11 @@ export default class Employee extends Phaser.GameObjects.Sprite {
     }
 
     updatePathFinder() {
-        const p = this.scene.worldLayer.worldToTileXY(this.x, this.y);
-        const d = this.scene.worldLayer.worldToTileXY(this.destination.x, this.destination.y);
+        const { scene } = this;
+        if (!scene) return;
+        if (!scene.worldLayer) return;
+        const p = scene.worldLayer.worldToTileXY(this.x, this.y);
+        const d = scene.worldLayer.worldToTileXY(this.destination.x, this.destination.y);
         this.pathFinder.findPath(
             p.x,
             p.y,
@@ -147,10 +151,22 @@ export default class Employee extends Phaser.GameObjects.Sprite {
         });
     };
 
+    onEmployeeRemoval(type) {
+        this.meta.desk.clear();
+        if (this.relief && this.reliefPoint) this.relief.release(this.reliefPoint);
+        this.business.employeeRemoval(this, type);
+        this.decorations.forEach(d => d.destroy());
+        this.destroy();
+    }
+
+    fire() {
+        console.log('Employee', this.meta.name, 'was fired!');
+        this.onEmployeeRemoval('fire');
+    }
+
     quit() {
         console.log('Employee', this.meta.name, 'quit!');
-        this.destroy();
-        this.business.employeeQuit(this);
+        this.onEmployeeRemoval('quit');
     }
 
     update(time) {

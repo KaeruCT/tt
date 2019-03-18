@@ -48,7 +48,7 @@ export class Relief {
         if (!relief) return;
         if (this.inProgress) return;
 
-        if (reliefPoint) reliefPoint.beginUsing();
+        if (reliefPoint && reliefPoint.beginUsing) reliefPoint.beginUsing();
         this.onStart();
         this.inProgress = true;
 
@@ -56,7 +56,7 @@ export class Relief {
         const reliefTime = randRange(min * 1000, max * 1000);
 
         setTimeout(() => {
-            if (reliefPoint) reliefPoint.stopUsing();
+            if (reliefPoint && reliefPoint.stopUsing) reliefPoint.stopUsing();
             this.reliefInProgress = false;
             this.onFinish();
         }, reliefTime);

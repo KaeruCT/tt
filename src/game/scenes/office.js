@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import Employee from '../sprites/Employee';
 import { createFinder, createGrid } from '../utils/path';
-import { randValue, randBool } from '../utils/rand';
+import { randValue, randBool, randRange } from '../utils/rand';
 import { snap, SKIN_COLORS, CLOTHES_COLORS, HAIR_COLORS, TILE_DIMENSION } from '../utils/misc';
 import { RELIEF_TYPES } from '../logic/relief';
 import Button from '../ui/Button';
@@ -11,9 +11,20 @@ import ReliefPoint from '../sprites/ReliefPoint';
 import { light } from '../ui/common';
 
 const NAMES = [
-    'Abdullah', 'Luciano', 'Oliver', 'Cezar', 'Julio', 'Alejandro',
+    'Abdullah', 'Luciano', 'Oliver', 'Cezar', 'Julio', 'Alejandra',
     'Andres', 'Oscar', 'Sahil', 'Catherine', 'Anna', 'Omer',
     'Alvaro', 'David', 'Ivan', 'Kate', 'Carina', 'Francisco',
+    'Laura', 'Marcela', 'Eva', 'Adriana', 'Lucia', 'Helena',
+];
+
+const HOBBIES = [
+    'videogames', 'playing music', 'bouldering', 'hiking', 'knitting',
+    'cooking', 'crafts', 'travelling', 'painting', 'poetry',
+    'reading', 'football', 'basketball', 'volleyball', 'cricket',
+    'brewing', 'chess', 'backpacking', 'archery', 'bodybuilding',
+    'magic', 'cycling', 'martial arts', 'rock collecting', 'sommelier',
+    'voluntering', 'poker', 'playing guitar', 'playing piano', 'fishing',
+    'surfing', 'bowling', 'interior design', 'languages', 'movies', 'dancing',
 ];
 
 const getObjects = (map, type) => map.filterObjects('Objects', o => {
@@ -56,7 +67,7 @@ export default class PlatformerScene extends Phaser.Scene {
         this.buildUi();
 
         this.business = new Business({ onFundsChange: this.onFundsChange.bind(this) });
-        this.deskPoints = getObjects(this.map, 'desk');
+        this.desks = getObjects(this.map, 'desk');
         this.peePoints = getObjects(this.map, RELIEF_TYPES.pee.id);
         this.pooPoints = getObjects(this.map, RELIEF_TYPES.poo.id);
 
@@ -88,17 +99,24 @@ export default class PlatformerScene extends Phaser.Scene {
         return true;
     }
 
+    clearDesk(p) {
+        p.taken = false;
+    }
+
     addEmployee() {
-        const emptyDesks = this.deskPoints.filter(p => !p.taken);
+        const emptyDesks = this.desks.filter(p => !p.taken);
         if (!emptyDesks.length) return false;
 
         const i = this.employees.getChildren().length;
         const p = emptyDesks[0];
         const meta = {
             name: randValue(NAMES),
+            age: randRange(18, 50),
+            hobbies: new Array(randRange(1, 3), 1).map(() => randValue(HOBBIES)),
             desk: {
                 meta: { id: 'desk' },
                 canUse: () => true,
+                clear: () => this.clearDesk(p),
                 x: p.x,
                 y: p.y,
             },
@@ -115,6 +133,51 @@ export default class PlatformerScene extends Phaser.Scene {
         this.business.addEmployee(e);
 
         return true;
+    }
+
+    selectEmployee(e) {
+        if (this.selectedEmployee) {
+            this.fireButton.destroy();
+            this.closeButton.destroy();
+            this.employeeInfo.destroy();
+            this.overlay.destroy();
+        }
+
+        this.selectedEmployee = e;
+        if (!this.selectedEmployee) return;
+
+        const { width, height } = this.sys.game.canvas;
+        const padding = TILE_DIMENSION;
+        this.overlay = this.add.graphics({
+            fillStyle: {
+                color: 0x000000,
+                alpha: 0.6,
+            }
+        })
+            .setScrollFactor(0)
+            .setDepth(9999);
+        this.overlay.fillRect(padding, padding*3, width - padding*2, height - padding*6);
+
+        this.employeeInfo = new Text(this, padding+1, padding*2+1)
+            .setDepth(9999);
+        this.employeeInfo.setText(this.getEmployeeInfo(this.selectedEmployee));
+        this.add.existing(this.employeeInfo);
+
+        this.fireButton = new Button(this, padding+1, 200, 'FIRE', () => {
+            this.selectedEmployee.fire();
+            this.selectEmployee(null);
+        }).setDepth(9999);
+        this.add.existing(this.fireButton);
+
+        this.closeButton = new Button(this, width - padding*2, padding*2+1, 'X', () => {
+            this.selectEmployee(null);
+        }).setDepth(9999);
+        this.add.existing(this.closeButton);
+
+        // HACK: update employee info periodically, should be more elegant
+        setTimeout(() => {
+            this.selectEmployee(this.selectedEmployee);
+        }, 300);
     }
 
     buildUi() {
@@ -212,6 +275,25 @@ export default class PlatformerScene extends Phaser.Scene {
         }
 
         this.business.passTime(delta);
+    }
+
+    getEmployeeInfo(e) {
+        const { working, sadness, relief } = e;
+        const { name, age, hobbies } = e.meta;
+        let info = `${name}\n\nAge: ${age}\n\nHobbies:\n - ${hobbies.join('\n - ')}\n\n`;
+        info += `Working: ${working ? 'yes' : 'no'}\n`;
+        if (sadness) {
+            info += `Couldn't hold it ${sadness} time(s)`;
+        }
+        if (relief) {
+            if (relief.inProgress) {
+                info += `Is currently doing: ${relief.id}\n`;
+            } else {
+                info += `Needs to ${relief.id}\n`;
+                info += `Has tried to go ${relief.attempts} time(s)\n`;
+            }
+        }
+        return info;
     }
 
     updateUi() {

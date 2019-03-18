@@ -74,13 +74,14 @@ export class Business {
         }
     }
 
-    employeeFired(e) {
-        this.employeeCost += 10;
-    }
-
-    employeeQuit(e) {
-        this.employeeCost += 20;
-        this.employeeSalary += 10;
+    employeeRemoval(e, type) {
+        if (type === 'fired') {
+            this.employeeCost += 10;
+        }
+        if (type === 'quit') {
+            this.employeeCost += 20;
+            this.employeeSalary += 10;
+        }
     }
 
     passTime(delta) {

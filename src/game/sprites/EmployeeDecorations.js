@@ -5,7 +5,6 @@ export class Hair extends Decoration {
         super(parent, 'hair', tint);
 
         this.setOrigin(0.5, 0.75);
-        this.setSize(12, 8);
         
         const { anims } = parent.scene;
         anims.create({
@@ -40,7 +39,6 @@ export class Clothes extends Decoration {
         super(parent, 'clothes', tint);
 
         this.setOrigin(0.5, 0.75);
-        this.setSize(12, 8);
 
         const { anims } = parent.scene;
         anims.create({

@@ -1,10 +1,11 @@
 import { RELIEF_TYPES } from './relief';
+import remove from 'lodash/remove';
 
 export class Business {
     constructor({ onFundsChange }) {
         this.name = 'Big Co. Inc';
         this.funds = 100;
-        this.employees = 0;
+        this.employees = [];
         this.employeeSalary = 10;
         this.employeeCost = 50;
         this.dayLength = 60;
@@ -25,9 +26,21 @@ export class Business {
         this.onFundsChange = onFundsChange;
     }
 
+    load(data) {
+        Object.keys(this).forEach(k => {
+            if (typeof this[k] === 'function') return;
+            this[k] = data[k];
+        });
+    }
+
+    getEmployees() {
+        return this.employees;
+    }
+
     addEmployee(e) {
-        this.employees += 1;
+        this.employees.push(e.meta);
         e.business = this;
+        console.log(this.employees);
     }
 
     addFunds(inc) {
@@ -63,7 +76,7 @@ export class Business {
     }
 
     paySalaries() {
-        const total = this.employees * this.employeeSalary;
+        const total = this.employees.length * this.employeeSalary;
         this.takeFunds(total);
     }
 
@@ -82,6 +95,10 @@ export class Business {
             this.employeeCost += 20;
             this.employeeSalary += 10;
         }
+
+        remove(this.employees, {
+            id: e.meta.id
+        });
     }
 
     passTime(delta) {
@@ -92,5 +109,7 @@ export class Business {
             this.paySalaries();
             this.currentTime = 0;
         }
+
+        localStorage.setItem('business', JSON.stringify(this));
     }
 }

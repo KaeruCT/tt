@@ -21,7 +21,7 @@ export default class Employee extends Phaser.GameObjects.Sprite {
         this.relief = null;
         this.time = 0;
         this.seed = Math.random();
-        this.sadness = 0;
+        this.meta.sadness = 0;
         this.sadnessLimit = 2;
 
         this.decorations = [
@@ -236,7 +236,7 @@ export default class Employee extends Phaser.GameObjects.Sprite {
             new Dropping(this.scene, {}, this.relief.id, this.x, this.y);
             this.setRelief(null);
 
-            if (this.sadness >= this.sadnessLimit) {
+            if (this.meta.sadness >= this.sadnessLimit) {
                 this.quit();
             }
         }

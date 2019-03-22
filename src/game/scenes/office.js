@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import Employee from '../sprites/Employee';
 import { createFinder, createGrid } from '../utils/path';
 import { randValue, randBool, randRange } from '../utils/rand';
-import { snap, SKIN_COLORS, CLOTHES_COLORS, HAIR_COLORS, TILE_DIMENSION } from '../utils/misc';
+import { snap, SKIN_COLORS, CLOTHES_COLORS, HAIR_COLORS, TILE_DIMENSION, generateUUID } from '../utils/misc';
 import { RELIEF_TYPES } from '../logic/relief';
 import Button from '../ui/Button';
 import Text from '../ui/Text';
@@ -67,6 +67,12 @@ export default class PlatformerScene extends Phaser.Scene {
         this.buildUi();
 
         this.business = new Business({ onFundsChange: this.onFundsChange.bind(this) });
+
+        const storedBusiness = localStorage.getItem('business');
+        if (storedBusiness) {
+            this.business.load(JSON.parse(storedBusiness));
+        }
+
         this.desks = getObjects(this.map, 'desk');
         this.peePoints = getObjects(this.map, RELIEF_TYPES.pee.id);
         this.pooPoints = getObjects(this.map, RELIEF_TYPES.poo.id);
@@ -76,9 +82,16 @@ export default class PlatformerScene extends Phaser.Scene {
 
         this.employees = this.add.group();
 
-        const initialEmployees = 1;
-        for (let i = 0; i < initialEmployees; i++) {
-            this.addEmployee();
+        const storedEmployees = this.business.getEmployees();
+        if (!storedEmployees.length) {
+            const initialEmployees = 1;
+            for (let i = 0; i < initialEmployees; i++) {
+                this.addEmployee();
+            }
+        } else {
+            for (let i = 0; i < storedEmployees.length; i++) {
+                this.addEmployee(storedEmployees[i]);
+            }
         }
     }
 
@@ -103,13 +116,14 @@ export default class PlatformerScene extends Phaser.Scene {
         p.taken = false;
     }
 
-    addEmployee() {
+    addEmployee(storedMeta = null) {
         const emptyDesks = this.desks.filter(p => !p.taken);
         if (!emptyDesks.length) return false;
 
         const i = this.employees.getChildren().length;
         const p = emptyDesks[0];
-        const meta = {
+        const meta = storedMeta || {
+            id: generateUUID(),
             name: randValue(NAMES),
             age: randRange(18, 50),
             hobbies: new Array(randRange(1, 3), 1).map(() => randValue(HOBBIES)),
@@ -130,7 +144,8 @@ export default class PlatformerScene extends Phaser.Scene {
         this.employees.add(e);
         e.body.setCollideWorldBounds(true);
         p.taken = true;
-        this.business.addEmployee(e);
+
+        if (!storedMeta) this.business.addEmployee(e);
 
         return true;
     }
@@ -277,12 +292,12 @@ export default class PlatformerScene extends Phaser.Scene {
     }
 
     getEmployeeInfo(e) {
-        const { working, sadness, relief } = e;
+        const { working, meta, relief } = e;
         const { name, age, hobbies } = e.meta;
         let info = `${name}\n\nAge: ${age}\n\nHobbies:\n - ${hobbies.join('\n - ')}\n\n`;
         info += `Working: ${working ? 'yes' : 'no'}\n`;
-        if (sadness) {
-            info += `Couldn't hold it ${sadness} time(s)\n`;
+        if (meta.sadness) {
+            info += `Couldn't hold it ${meta.sadness} time(s)\n`;
         }
         if (relief) {
             if (relief.inProgress) {

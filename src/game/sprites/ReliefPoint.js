@@ -3,13 +3,12 @@ import { RELIEF_TYPES } from '../logic/relief';
 import { randBool } from '../utils/rand';
 
 export default class ReliefPoint extends Phaser.GameObjects.Sprite {
-    constructor(scene, meta, reliefId, supported, x, y) {
-        super(scene, x, y, 'relief_point');
+    constructor(scene, meta) {
+        super(scene, meta.x, meta.y, 'relief_point');
         scene.physics.world.enable(this);
         scene.add.existing(this);
+        this.reliefId = meta.reliefId;
         this.meta = meta;
-        this.reliefId = reliefId;
-        this.supported = supported;
         this.busy = false;
         this.broken = false;
         this.fixing = false;
@@ -60,7 +59,7 @@ export default class ReliefPoint extends Phaser.GameObjects.Sprite {
     }
 
     supportsRelief(reliefId) {
-        return this.supported.includes(reliefId);
+        return RELIEF_TYPES[this.reliefId].supported.includes(reliefId);
     }
 
     beginUsing() {

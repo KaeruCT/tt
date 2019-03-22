@@ -23,6 +23,7 @@ export class Business {
             [RELIEF_TYPES.pee.id]: 5,
             [RELIEF_TYPES.poo.id]: 10,
         };
+        this.reliefPoints = [];
         this.onFundsChange = onFundsChange;
     }
 
@@ -39,8 +40,14 @@ export class Business {
 
     addEmployee(e) {
         this.employees.push(e.meta);
-        e.business = this;
-        console.log(this.employees);
+    }
+
+    addReliefPoint(r) {
+        this.reliefPoints.push(r.meta);
+    }
+
+    getReliefPoints() {
+        return this.reliefPoints;
     }
 
     addFunds(inc) {

@@ -52,6 +52,7 @@ export default class PlatformerScene extends Phaser.Scene {
 
     create() {
         this.t = 0;
+        this.paused = false;
         this.cameras.main.scrollY = -TILE_DIMENSION * 2;
         this.fundIncrement = 0;
 
@@ -74,76 +75,101 @@ export default class PlatformerScene extends Phaser.Scene {
         }
 
         this.desks = getObjects(this.map, 'desk');
+        this.desks.forEach(d => {
+            d.meta = { id: `desk-${d.x}-${d.y}` };
+        });
         this.peePoints = getObjects(this.map, RELIEF_TYPES.pee.id);
+        this.peePoints.forEach(p => p.meta = {});
         this.pooPoints = getObjects(this.map, RELIEF_TYPES.poo.id);
+        this.pooPoints.forEach(p => p.meta = {});
 
         this.reliefPoints = this.add.group();
-        this.addReliefPoint(RELIEF_TYPES.poo.id); // start with one poo point
+
+        if (!storedBusiness) {
+            this.addReliefPoint(RELIEF_TYPES.poo.id); // start with one poo point
+        } else {
+            const storedReliefPoints = this.business.getReliefPoints();
+            for (let i = 0; i < storedReliefPoints.length; i++) {
+                const p = storedReliefPoints[i];
+                this.addReliefPoint(null, p);
+            }
+        }
 
         this.employees = this.add.group();
 
-        const storedEmployees = this.business.getEmployees();
-        if (!storedEmployees.length) {
+        if (!storedBusiness) {
             const initialEmployees = 1;
             for (let i = 0; i < initialEmployees; i++) {
                 this.addEmployee();
             }
         } else {
+            const storedEmployees = this.business.getEmployees();
             for (let i = 0; i < storedEmployees.length; i++) {
                 this.addEmployee(storedEmployees[i]);
             }
         }
     }
 
-    addReliefPoint(reliefType) {
-        const points = reliefType === RELIEF_TYPES.poo.id ? this.pooPoints : this.peePoints;
-        const emptySlots = points.filter(p => !p.taken);
+    addReliefPoint(reliefId, storedMeta = null) {
+        if (!reliefId) reliefId = storedMeta.reliefId;
+        const points = reliefId === RELIEF_TYPES.poo.id ? this.pooPoints : this.peePoints;
+        const emptySlots = points.filter(p => !p.meta.taken);
         if (!emptySlots.length) return false;
 
         const p = emptySlots[0];
-        const pointId = this.reliefPoints.getChildren().length;
-        const { supported, id } = RELIEF_TYPES[reliefType];
-        const reliefPoint = new ReliefPoint(this, {
-            id: `${pointId}-${supported.join(',')}`,
-        }, id, supported, p.x, p.y);
+        const meta = storedMeta || {
+            id: generateUUID(),
+            reliefId,
+            x: p.x,
+            y: p.y,
+        };
+        const reliefPoint = new ReliefPoint(this, meta);
         this.reliefPoints.add(reliefPoint);
-        p.taken = true;
+        p.meta.taken = true;
+
+        if (!storedMeta) this.business.addReliefPoint(reliefPoint);
 
         return true;
     }
 
-    clearDesk(p) {
-        p.taken = false;
+    removeEmployee(e, type) {
+        const desk = this.desks.find(p => p.meta.employeeId === e.id);
+        if (desk) {
+            desk.meta.taken = false;
+            desk.meta.employeeId = null;
+        }
+        this.business.employeeRemoval(e, type);
     }
 
     addEmployee(storedMeta = null) {
-        const emptyDesks = this.desks.filter(p => !p.taken);
+        const emptyDesks = this.desks.filter(p => !p.meta.taken);
         if (!emptyDesks.length) return false;
 
         const i = this.employees.getChildren().length;
-        const p = emptyDesks[0];
         const meta = storedMeta || {
             id: generateUUID(),
             name: randValue(NAMES),
             age: randRange(18, 50),
             hobbies: new Array(randRange(1, 3), 1).map(() => randValue(HOBBIES)),
-            desk: {
-                meta: { id: 'desk' },
-                canUse: () => true,
-                clear: () => this.clearDesk(p),
-                x: p.x,
-                y: p.y,
-            },
             tint: SKIN_COLORS[i % SKIN_COLORS.length],
             hair: randValue(HAIR_COLORS),
             clothes: randValue(CLOTHES_COLORS),
         };
-        const e = new Employee(this, meta, p.x, p.y, createFinder(this.tileset));
+
+        if (storedMeta) {
+            meta.desk = this.desks.find(p => p.meta.id === storedMeta.desk.meta.id);
+        } else {
+            meta.desk = emptyDesks[0];
+        }
+        const desk = meta.desk;
+
+        const e = new Employee(this, meta, desk.x, desk.y, createFinder(this.tileset));
         e.pathFinder.setGrid(createGrid(this.map, 'World', getEmployeesCoords(this.employees, e)));
         // this.physics.add.collider(e, worldLayer); // TODO: physics fucks up the path following :(
         this.employees.add(e);
         e.body.setCollideWorldBounds(true);
-        p.taken = true;
+        desk.meta.taken = true;
+        desk.meta.employeeId = meta.id;
 
         if (!storedMeta) this.business.addEmployee(e);
 
@@ -213,6 +239,13 @@ export default class PlatformerScene extends Phaser.Scene {
         });
         this.add.existing(this.toiletButton);
 
+        this.resetButton = new Button(this, 4, 360, 'RESET', () => {
+            localStorage.removeItem('business');
+            this.paused = true;
+            window.location.reload();    
+        });
+        this.add.existing(this.resetButton);
+
         this.graphics = this.add.graphics()
             .setScrollFactor(0)
             .setDepth(999);
@@ -247,6 +280,8 @@ export default class PlatformerScene extends Phaser.Scene {
     }
 
     update(time, delta) {
+        if (this.paused) return;
+
         this.t++;
         this.employees.getChildren().forEach(e => {
             const t = this.t + Math.floor(e.seed * 1000);

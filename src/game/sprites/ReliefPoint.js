@@ -10,9 +10,7 @@ export default class ReliefPoint extends Phaser.GameObjects.Sprite {
         this.reliefId = meta.reliefId;
         this.meta = meta;
         this.busy = false;
-        this.broken = false;
         this.fixing = false;
-        this.usages = 0;
 
         this.setInteractive({ useHandCursor: true })
             .on('pointerdown', () => this.startFixing());
@@ -69,9 +67,9 @@ export default class ReliefPoint extends Phaser.GameObjects.Sprite {
     stopUsing() {
         const relief = RELIEF_TYPES[this.reliefId];
         this.busy = false;
-        this.usages += 1;
-        if (this.usages >= relief.minPointUsages && randBool(0.8)) {
-            this.broken = true;
+        this.meta.usages += 1;
+        if (this.meta.usages >= relief.minPointUsages && randBool(0.8)) {
+            this.meta.broken = true;
             this.updateAnimation();
         }
     }
@@ -93,13 +91,13 @@ export default class ReliefPoint extends Phaser.GameObjects.Sprite {
 
     fix() {
         this.fixing = false;
-        this.broken = false;
-        this.usages = 0;
+        this.meta.broken = false;
+        this.meta.usages = 0;
         this.updateAnimation();
     }
 
     canUse() {
-        return !this.fixing && !this.broken && !this.busy;
+        return !this.fixing && !this.meta.broken && !this.busy;
     }
 
     updateAnimation() {
@@ -117,7 +115,7 @@ export default class ReliefPoint extends Phaser.GameObjects.Sprite {
         }
 
         if (this.fixing) return `${prefix}_cleaning`;
-        if (this.broken) return `${prefix}_dirty`;
+        if (this.meta.broken) return `${prefix}_dirty`;
         return `${prefix}`;
     }
 }

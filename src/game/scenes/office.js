@@ -122,6 +122,8 @@ export default class PlatformerScene extends Phaser.Scene {
             reliefId,
             x: p.x,
             y: p.y,
+            broken: false,
+            usages: 0,
         };
         const reliefPoint = new ReliefPoint(this, meta);
         this.reliefPoints.add(reliefPoint);

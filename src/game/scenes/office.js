@@ -261,7 +261,9 @@ export default class PlatformerScene extends Phaser.Scene {
     }
 
     findReliefPoint(reliefId) {
-        return randValue(this.reliefPoints.getChildren().filter(p => p.supportsRelief(reliefId)));
+        let points = this.reliefPoints.getChildren().filter(p => p.supportsRelief(reliefId));
+        let cleanPoints = points.filter(p => !p.broken);
+        return randValue(cleanPoints.length ? cleanPoints : points);
     }
 
     onFundsChange(amount) {

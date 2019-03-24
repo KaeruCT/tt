@@ -22,7 +22,7 @@ export default class Employee extends Phaser.GameObjects.Sprite {
         this.time = 0;
         this.seed = Math.random();
         this.meta.sadness = 0;
-        this.sadnessLimit = 2;
+        this.sadnessLimit = 5;
 
         this.decorations = [
             new Hair(this, meta.hair),

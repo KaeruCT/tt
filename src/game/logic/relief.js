@@ -62,6 +62,10 @@ export class Relief {
         }, reliefTime);
     }
 
+    forcedFinish() {
+        this.onFinish();
+    }
+
     attempted(time) {
         this.attempts++;
         this.lastAttemptTime = time;

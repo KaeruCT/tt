@@ -2,12 +2,12 @@ import Phaser from 'phaser';
 import { RELIEF_TYPES } from '../logic/relief';
 
 export default class Dropping extends Phaser.GameObjects.Sprite {
-    constructor(scene, meta, reliefId, x, y) {
-        super(scene, x, y, 'relief_point');
+    constructor(scene, meta) {
+        super(scene, meta.x, meta.y, 'relief_point');
         scene.physics.world.enable(this);
         scene.add.existing(this);
         this.meta = meta;
-        this.reliefId = reliefId;
+        this.reliefId = meta.reliefId;
 
         this.setInteractive({ useHandCursor: true })
             .on('pointerdown', () => this.fix());

@@ -4,7 +4,7 @@ import remove from 'lodash/remove';
 export class Business {
     constructor({ onFundsChange }) {
         this.name = 'Big Co. Inc';
-        this.funds = 100;
+        this.funds = 200;
         this.employees = [];
         this.employeeSalary = 10;
         this.employeeCost = 50;
@@ -16,14 +16,15 @@ export class Business {
             [RELIEF_TYPES.poo.id]: 200,
         };
         this.droppingCleanCost = {
+            [RELIEF_TYPES.pee.id]: 1,
+            [RELIEF_TYPES.poo.id]: 3,
+        };
+        this.facilityFixCost = {
             [RELIEF_TYPES.pee.id]: 2,
             [RELIEF_TYPES.poo.id]: 5,
         };
-        this.facilityFixCost = {
-            [RELIEF_TYPES.pee.id]: 5,
-            [RELIEF_TYPES.poo.id]: 10,
-        };
         this.reliefPoints = [];
+        this.droppings = [];
         this.onFundsChange = onFundsChange;
     }
 
@@ -40,6 +41,14 @@ export class Business {
 
     addEmployee(e) {
         this.employees.push(e.meta);
+    }
+
+    getDroppings() {
+        return this.droppings;
+    }
+
+    addDropping(d) {
+        this.droppings.push(d.meta);
     }
 
     addReliefPoint(r) {
@@ -88,7 +97,7 @@ export class Business {
     }
 
     doIfAffordable(fn, cost) {
-        if (this.getFunds() > cost) {
+        if (this.getFunds() >= cost) {
             const success = fn();
             if (success) this.takeFunds(cost);
         }
@@ -96,11 +105,11 @@ export class Business {
 
     employeeRemoval(e, type) {
         if (type === 'fired') {
-            this.employeeCost += 10;
+            this.employeeCost += 5;
         }
         if (type === 'quit') {
-            this.employeeCost += 20;
-            this.employeeSalary += 10;
+            this.employeeCost += 10;
+            this.employeeSalary += 5;
         }
 
         remove(this.employees, {

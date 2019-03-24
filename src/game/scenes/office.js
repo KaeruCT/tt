@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import Employee from '../sprites/Employee';
+import Dropping from '../sprites/Dropping';
 import { createFinder, createGrid } from '../utils/path';
 import { randValue, randBool, randRange } from '../utils/rand';
 import { snap, SKIN_COLORS, CLOTHES_COLORS, HAIR_COLORS, TILE_DIMENSION, generateUUID } from '../utils/misc';
@@ -12,9 +13,11 @@ import { light } from '../ui/common';
 
 const NAMES = [
     'Abdullah', 'Luciano', 'Oliver', 'Cezar', 'Julio', 'Alejandra',
+    'Eric', 'Alex', 'Nick', 'Patrick', 'Katherine', 'Mohammed',
     'Andres', 'Oscar', 'Sahil', 'Catherine', 'Anna', 'Omer',
     'Alvaro', 'David', 'Ivan', 'Kate', 'Carina', 'Francisco',
     'Laura', 'Marcela', 'Eva', 'Adriana', 'Lucia', 'Helena',
+    'Nicole', 'Anastasia', 'Mary', 'Christine', 'Sofia', 'Monica',
 ];
 
 const HOBBIES = [
@@ -25,6 +28,7 @@ const HOBBIES = [
     'magic', 'cycling', 'martial arts', 'rock collecting', 'sommelier',
     'voluntering', 'poker', 'playing guitar', 'playing piano', 'fishing',
     'surfing', 'bowling', 'interior design', 'languages', 'movies', 'dancing',
+    'board games', 'fanfics', 'writing', 'philosophy', 'woodworking', 'fashion'
 ];
 
 const getObjects = (map, type) => map.filterObjects('Objects', o => {
@@ -108,6 +112,13 @@ export default class PlatformerScene extends Phaser.Scene {
                 this.addEmployee(storedEmployees[i]);
             }
         }
+
+        if (storedBusiness) {
+            const droppings = this.business.getDroppings();
+            for (let i = 0; i < droppings.length; i++) {
+                this.addDropping(droppings[i], false);
+            }
+        }
     }
 
     addReliefPoint(reliefId, storedMeta = null) {
@@ -134,6 +145,11 @@ export default class PlatformerScene extends Phaser.Scene {
         return true;
     }
 
+    addDropping(meta, save = true) {
+        const dropping = new Dropping(this, meta);
+        if (save) this.business.addDropping(dropping);
+    }
+
     removeEmployee(e, type) {
         const desk = this.desks.find(p => p.meta.employeeId === e.meta.id);
         if (desk) {
@@ -156,6 +172,21 @@ export default class PlatformerScene extends Phaser.Scene {
             tint: SKIN_COLORS[i % SKIN_COLORS.length],
             hair: randValue(HAIR_COLORS),
             clothes: randValue(CLOTHES_COLORS),
+            stats: {
+                work: {
+                    duration: 0,
+                },
+                [RELIEF_TYPES.poo.id]: {
+                    times: 0,
+                    duration: 0,
+                    outside: 0,
+                },
+                [RELIEF_TYPES.pee.id]: {
+                    times: 0,
+                    duration: 0,
+                    outside: 0,
+                },
+            }
         };
 
         if (storedMeta) {
@@ -183,6 +214,7 @@ export default class PlatformerScene extends Phaser.Scene {
             this.fireButton.destroy();
             this.closeButton.destroy();
             this.employeeInfo.destroy();
+            this.employeeStats.destroy();
             this.overlay.destroy();
         }
 
@@ -211,6 +243,11 @@ export default class PlatformerScene extends Phaser.Scene {
         }).setDepth(9999);
         this.add.existing(this.fireButton);
 
+        this.employeeStats = new Text(this, padding+40, 200)
+            .setDepth(9999);
+        this.employeeStats.setText(this.getEmployeeStats(this.selectedEmployee));
+        this.add.existing(this.employeeStats);
+
         this.closeButton = new Button(this, width - padding*2, padding*2+1, 'X', () => {
             this.selectEmployee(null);
         }).setDepth(9999);
@@ -218,7 +255,7 @@ export default class PlatformerScene extends Phaser.Scene {
 
         // HACK: update employee info periodically, should be more elegant
         setTimeout(() => {
-            this.selectEmployee(this.selectedEmployee);
+            if (this.selectedEmployee) this.selectEmployee(this.selectedEmployee);
         }, 300);
     }
 
@@ -269,10 +306,12 @@ export default class PlatformerScene extends Phaser.Scene {
     }
 
     onFundsChange(amount) {
-        const positive = amount > 0 ? '+' : '';
+        const positive = amount > 0;
+        const symbol = positive ? '+' : '-';
+        const absAmount = Math.abs(amount);
         const dist = 10;
         const style = { ...light, fill: positive ? '#6f6' : '#f66' };
-        const text = new Text(this, this.fundsBox.x + (positive ? 8 : 20), this.fundsBox.y + (positive ? dist : 0), `${positive}$${amount}`, style);
+        const text = new Text(this, this.fundsBox.x + (positive ? 8 : 20), this.fundsBox.y + (positive ? dist : 0), `${symbol}$${absAmount}`, style);
         this.add.existing(text);
 
         this.tweens.add({
@@ -297,7 +336,7 @@ export default class PlatformerScene extends Phaser.Scene {
 
                 if (!e.relief && time > e.nextReliefMinTime && randBool(0.1)) {
                     // somebody has to go...
-                    e.setRelief(randBool() ? RELIEF_TYPES.pee : RELIEF_TYPES.poo);
+                    e.setRelief(randBool(0.65) ? RELIEF_TYPES.pee : RELIEF_TYPES.poo);
                     e.triggerRestroomAttempt(this.findReliefPoint.bind(this));
                 }
 
@@ -307,7 +346,7 @@ export default class PlatformerScene extends Phaser.Scene {
                 }
             }
 
-            e.update(time);
+            e.update(time, delta);
 
             if (e.working) {
                 this.fundIncrement += delta / 1000;
@@ -346,6 +385,21 @@ export default class PlatformerScene extends Phaser.Scene {
                 info += `Has tried to go ${relief.attempts} time(s)\n`;
             }
         }
+        return info;
+    }
+
+    getEmployeeStats(e) {
+        const { stats } = e.meta;
+        const f = (d) => Math.floor(d/1000);
+
+        let info = 'Time...\n';
+        info += ` - Working: ${f(stats.work.duration)}\n`;
+        info += ` - Peeing: ${f(stats[RELIEF_TYPES.pee.id].duration)}\n`;
+        info += ` - Pooping: ${f(stats[RELIEF_TYPES.poo.id].duration)}\n`;
+
+        info += `\nTotals\n`;
+        info += ` - Pee: ${stats[RELIEF_TYPES.pee.id].times} (${stats[RELIEF_TYPES.pee.id].outside} on floor)\n`;
+        info += ` - Poo: ${stats[RELIEF_TYPES.poo.id].times} (${stats[RELIEF_TYPES.poo.id].outside} on floor)\n`;
         return info;
     }
 

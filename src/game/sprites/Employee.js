@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
 import { TILE_DIMENSION } from '../utils/misc';
-import { Relief } from '../logic/relief';
-import Dropping from './Dropping';
+import { Relief, RELIEF_TYPES } from '../logic/relief';
 import { Hair, Clothes } from './EmployeeDecorations';
+import { randRange } from '../utils/rand';
 
 export default class Employee extends Phaser.GameObjects.Sprite {
     constructor(scene, meta, x, y, pathFinder) {
@@ -10,7 +10,8 @@ export default class Employee extends Phaser.GameObjects.Sprite {
         scene.physics.world.enable(this);
         scene.add.existing(this);
         this.setOrigin(0.5, 0.75);
-        this.speed = 100;
+        this.initialSpeed = 100;
+        this.speed = this.initialSpeed;
         this.meta = meta;
         this.path = [];
         this.pathFinder = pathFinder;
@@ -22,7 +23,7 @@ export default class Employee extends Phaser.GameObjects.Sprite {
         this.time = 0;
         this.seed = Math.random();
         this.meta.sadness = 0;
-        this.sadnessLimit = 5;
+        this.sadnessLimit = 3;
 
         this.decorations = [
             new Hair(this, meta.hair),
@@ -60,6 +61,8 @@ export default class Employee extends Phaser.GameObjects.Sprite {
     }
 
     setDestination(destination) {
+        if (destination.id !== this.meta.desk.id) this.previousDestination = destination;
+
         this.working = false;
         return new Promise((resolve, reject) => {
             this.destination = destination;
@@ -107,6 +110,7 @@ export default class Employee extends Phaser.GameObjects.Sprite {
         }, () => {
             this.nextReliefMinTime = this.time + relief.cooldown * 1000;
             console.log('Employee', this.meta.name, 'finished', relief.id);
+            this.meta.stats[relief.id].times += 1;
             this.setRelief(null);
             this.goToDesk();
         });
@@ -114,6 +118,7 @@ export default class Employee extends Phaser.GameObjects.Sprite {
 
     startToRelieve() {
         const { relief, reliefPoint } = this;
+        this.speed = this.initialSpeed;
 
         if (!relief) return;
         this.relief.release(reliefPoint);
@@ -121,6 +126,7 @@ export default class Employee extends Phaser.GameObjects.Sprite {
 
     giveUp() {
         if (this.relief) this.relief.attempted(this.time);
+        this.speed += 5;
         this.goToDesk();
     }
 
@@ -170,7 +176,7 @@ export default class Employee extends Phaser.GameObjects.Sprite {
         this.onEmployeeRemoval('quit');
     }
 
-    update(time) {
+    update(time, delta) {
         this.time = time;
         const { scene, meta, pathFinder, speed, destination, path, body, relief } = this;
         const dx = body.velocity.x ? (body.velocity.x > 0 ? -1 : 1) : 0;
@@ -230,18 +236,32 @@ export default class Employee extends Phaser.GameObjects.Sprite {
             }
         }
 
-        if (this.relief && this.relief.expirationTime && time > this.relief.expirationTime) {
-            console.log('Oh no! Employee', meta.name, 'could not hold their', relief.id);
-            this.sadness += 1;
-            new Dropping(this.scene, {}, this.relief.id, this.x, this.y);
+        if (relief && relief.expirationTime && time > relief.expirationTime) {
             this.setRelief(null);
-
-            if (this.meta.sadness >= this.sadnessLimit) {
-                this.quit();
-            }
+            this.triggerRestroomAttempt(() => this.previousDestination);
+            setTimeout(() => this.releaseInPlace(relief), randRange(1000, 3000));
         }
 
         this.decorations.forEach(d => d.update());
+
+        if (this.working) {
+            meta.stats.work.duration += delta;
+        } else if (relief && relief.inProgress) {
+            meta.stats[relief.id].duration += delta;
+        }
+    }
+
+    releaseInPlace(relief) {
+        const { scene, meta, x, y } = this;
+        console.log('Oh no! Employee', meta.name, 'could not hold their', relief.id);
+        meta.sadness += 1;
+        scene.addDropping({ reliefId: relief.id, x, y });
+        relief.forcedFinish();
+        this.meta.stats[relief.id].outside += 1;
+
+        if (meta.sadness >= this.sadnessLimit) {
+            this.quit();
+        }
     }
 
     playAnimation(name) {

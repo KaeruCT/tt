@@ -133,7 +133,7 @@ export default class PlatformerScene extends Phaser.Scene {
     }
 
     removeEmployee(e, type) {
-        const desk = this.desks.find(p => p.meta.employeeId === e.id);
+        const desk = this.desks.find(p => p.meta.employeeId === e.meta.id);
         if (desk) {
             desk.meta.taken = false;
             desk.meta.employeeId = null;

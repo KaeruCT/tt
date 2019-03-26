@@ -1,5 +1,8 @@
 import Phaser from 'phaser';
-import office from './scenes/office';
+
+import OfficeScene from './scenes/office';
+import HudScene from './scenes/hud';
+
 const zoom = 1.5;
 const config = {
     type: Phaser.AUTO,
@@ -13,7 +16,7 @@ const config = {
         default: 'arcade',
         arcade: { debug: false, gravity: { y: 0 } }
     },
-    scene: office
+    scene: [OfficeScene, HudScene],
 };
 
 new Phaser.Game(config);

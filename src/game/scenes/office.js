@@ -5,11 +5,8 @@ import { createFinder, createGrid } from '../utils/path';
 import { randValue, randBool, randRange } from '../utils/rand';
 import { snap, SKIN_COLORS, CLOTHES_COLORS, HAIR_COLORS, TILE_DIMENSION, generateUUID } from '../utils/misc';
 import { RELIEF_TYPES } from '../logic/relief';
-import Button from '../ui/Button';
-import Text from '../ui/Text';
 import { Business } from '../logic/business';
 import ReliefPoint from '../sprites/ReliefPoint';
-import { light } from '../ui/common';
 
 const NAMES = [
     'Abdullah', 'Luciano', 'Oliver', 'Cezar', 'Julio', 'Alejandra',
@@ -44,7 +41,11 @@ const getEmployeesCoords = (employees, exclude) => {
     }));
 };
 
-export default class PlatformerScene extends Phaser.Scene {
+export default class OfficeScene extends Phaser.Scene {
+    constructor() {
+        super({ key: 'OfficeScene', active: true });
+    }
+
     preload() {
         this.load.image('Dungeon_Tileset', 'assets/2d/tileset/Dungeon_Tileset.png');
         this.load.spritesheet('employee', 'assets/2d/char.png', { frameWidth: 16, frameHeight: 16 });
@@ -52,38 +53,31 @@ export default class PlatformerScene extends Phaser.Scene {
         this.load.spritesheet('clothes', 'assets/2d/clothes.png', { frameWidth: 16, frameHeight: 16 });
         this.load.spritesheet('relief_point', 'assets/2d/relief.png', { frameWidth: 16, frameHeight: 16 });
         this.load.tilemapTiledJSON('map', 'assets/maps/2.json');
+
+        this.load.plugin('rexpinchplugin', 'assets/rexpinchplugin.min.js', true);
     }
 
     initCamera() {
-        const { width, height } = this.cameras.main.worldView;
         this.cameras.main.scrollY = -TILE_DIMENSION * 2;
-        const pan = this.add.zone(width / 2, height / 2, 1, 1);
-        this.cameras.main.startFollow(pan, true, 1, 1);
+        const camera = this.cameras.main;
 
-        let dragging = false;
-        let prevX = pan.x;
-        let prevY = pan.y;
-
-        this.input.on('pointerdown', () => {
-            dragging = true;
-            prevX = pan.x;
-            prevY = pan.y;
-        });
-
-        this.input.on('pointerup', () => dragging = false);
-
-        this.input.on('pointermove', (pointer) => {
-            if (!dragging) return;
-            console.log(pointer);
-            pan.setX(prevX + pointer.downX - pointer.x);
-            pan.setY(prevY + pointer.downY - pointer.y);
-        });
+        this.plugins.get('rexpinchplugin').add(this)
+            .on('drag1', (dragScale) => {
+                const drag1Vector = dragScale.drag1Vector;
+                camera.scrollX -= drag1Vector.x / camera.zoom;
+                camera.scrollY -= drag1Vector.y / camera.zoom;
+            })
+            .on('pinch', (dragScale) => {
+                const scaleFactor = dragScale.scaleFactor;
+                camera.zoom *= scaleFactor;
+            }, this);
     }
 
     create() {
         this.t = 0;
         this.paused = false;
         this.fundIncrement = 0;
+        this.hud = this.scene.get('HudScene');
 
         this.map = this.make.tilemap({ key: 'map' });
         this.tileset = this.map.addTilesetImage('Dungeon_Tileset');
@@ -95,7 +89,6 @@ export default class PlatformerScene extends Phaser.Scene {
         this.worldLayer = worldLayer;
 
         this.initCamera();
-        this.buildUi();
 
         this.business = new Business({ onFundsChange: this.onFundsChange.bind(this) });
 
@@ -235,87 +228,6 @@ export default class PlatformerScene extends Phaser.Scene {
         return true;
     }
 
-    selectEmployee(e) {
-        if (this.selectedEmployee) {
-            this.fireButton.destroy();
-            this.closeButton.destroy();
-            this.employeeInfo.destroy();
-            this.employeeStats.destroy();
-            this.overlay.destroy();
-        }
-
-        this.selectedEmployee = e;
-        if (!this.selectedEmployee) return;
-
-        const { width, height } = this.sys.game.canvas;
-        const padding = TILE_DIMENSION;
-        this.overlay = this.add.graphics({
-            fillStyle: {
-                color: 0x000000,
-                alpha: 0.6,
-            }
-        })
-            .setScrollFactor(0)
-            .setDepth(9999);
-        this.overlay.fillRect(padding, padding*3, width - padding*2, height - padding*6);
-
-        this.employeeInfo = new Text(this, padding+1, padding*2+1)
-            .setDepth(9999);
-        this.employeeInfo.setText(this.getEmployeeInfo(this.selectedEmployee));
-        this.add.existing(this.employeeInfo);
-
-        this.fireButton = new Button(this, padding+1, 200, 'FIRE', () => {
-            this.selectedEmployee.fire();
-        }).setDepth(9999);
-        this.add.existing(this.fireButton);
-
-        this.employeeStats = new Text(this, padding+40, 200)
-            .setDepth(9999);
-        this.employeeStats.setText(this.getEmployeeStats(this.selectedEmployee));
-        this.add.existing(this.employeeStats);
-
-        this.closeButton = new Button(this, width - padding*2, padding*2+1, 'X', () => {
-            this.selectEmployee(null);
-        }).setDepth(9999);
-        this.add.existing(this.closeButton);
-
-        // HACK: update employee info periodically, should be more elegant
-        setTimeout(() => {
-            if (this.selectedEmployee) this.selectEmployee(this.selectedEmployee);
-        }, 300);
-    }
-
-    buildUi() {
-        this.fundsBox = new Text(this, 20, 4);
-        this.add.existing(this.fundsBox);
-
-        this.hireButton = new Button(this, 150, 4, ' + ', () => {
-            this.hireEmployee();
-        });
-        this.add.existing(this.hireButton);
-
-        this.pissoirButton = new Button(this, 180, 4, 'PEE', () => {
-            this.buyReliefPoint(RELIEF_TYPES.pee.id);
-        });
-        this.add.existing(this.pissoirButton);
-
-        this.toiletButton = new Button(this, 210, 4, 'POO', () => {
-            this.buyReliefPoint(RELIEF_TYPES.poo.id);
-        });
-        this.add.existing(this.toiletButton);
-
-        this.resetButton = new Button(this, 4, 360, 'RESET', () => {
-            localStorage.removeItem('business');
-            this.paused = true;
-            window.location.reload();    
-        });
-        this.add.existing(this.resetButton);
-
-        this.graphics = this.add.graphics()
-            .setScrollFactor(0)
-            .setDepth(999);
-    }
-
     hireEmployee() {
         this.business.doIfAffordable(() => this.addEmployee(), this.business.employeeCost);
     }
@@ -331,21 +243,12 @@ export default class PlatformerScene extends Phaser.Scene {
         return randValue(cleanAndEmptyPoints.length ? cleanAndEmptyPoints : points);
     }
 
-    onFundsChange(amount) {
-        const positive = amount > 0;
-        const symbol = positive ? '+' : '-';
-        const absAmount = Math.abs(amount);
-        const dist = 10;
-        const style = { ...light, fill: positive ? '#6f6' : '#f66' };
-        const text = new Text(this, this.fundsBox.x + (positive ? 8 : 20), this.fundsBox.y + (positive ? dist : 0), `${symbol}$${absAmount}`, style);
-        this.add.existing(text);
+    selectEmployee(e) {
+        this.hud.selectEmployee(e);
+    }
 
-        this.tweens.add({
-            targets: text,
-            y: this.fundsBox.y + (positive ? 0 : dist),
-            onComplete: () => text.destroy(),
-            duration: 300,
-        });
+    onFundsChange(amount) {
+        this.hud.onFundsChange(amount);
     }
 
     update(time, delta) {
@@ -392,8 +295,6 @@ export default class PlatformerScene extends Phaser.Scene {
             c.setDepth(c.y);
         });
 
-        this.updateUi();
-
         if (this.fundIncrement > 1) {
             const trunc = Math.trunc(this.fundIncrement);
             this.business.addFunds(trunc);
@@ -435,22 +336,5 @@ export default class PlatformerScene extends Phaser.Scene {
         info += ` - Pee: ${stats[RELIEF_TYPES.pee.id].times} (${stats[RELIEF_TYPES.pee.id].outside} on floor)\n`;
         info += ` - Poo: ${stats[RELIEF_TYPES.poo.id].times} (${stats[RELIEF_TYPES.poo.id].outside} on floor)\n`;
         return info;
-    }
-
-    updateUi() {
-        const { currentTime, dayLength } = this.business;
-        this.fundsBox.setText(`${this.business.getFormattedFunds()}`);
-
-        const dayCompletion = dayLength - currentTime / dayLength;
-        const rad = 6;
-        const cx = 12;
-        const cy = 12;
-        this.graphics.clear();
-        this.graphics.fillStyle(0x444444, 1);
-        this.graphics.fillEllipse(cx, cy, rad * 2, rad * 2);
-        this.graphics.lineStyle(2, 0xcccccc, 1);
-        this.graphics.beginPath();
-        this.graphics.arc(cx, cy, rad, Phaser.Math.DegToRad(270), Phaser.Math.DegToRad(270 + dayCompletion * 360), true);
-        this.graphics.strokePath();
     }
 }

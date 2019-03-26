@@ -54,10 +54,35 @@ export default class PlatformerScene extends Phaser.Scene {
         this.load.tilemapTiledJSON('map', 'assets/maps/2.json');
     }
 
+    initCamera() {
+        const { width, height } = this.cameras.main.worldView;
+        this.cameras.main.scrollY = -TILE_DIMENSION * 2;
+        const pan = this.add.zone(width / 2, height / 2, 1, 1);
+        this.cameras.main.startFollow(pan, true, 1, 1);
+
+        let dragging = false;
+        let prevX = pan.x;
+        let prevY = pan.y;
+
+        this.input.on('pointerdown', () => {
+            dragging = true;
+            prevX = pan.x;
+            prevY = pan.y;
+        });
+
+        this.input.on('pointerup', () => dragging = false);
+
+        this.input.on('pointermove', (pointer) => {
+            if (!dragging) return;
+            console.log(pointer);
+            pan.setX(prevX + pointer.downX - pointer.x);
+            pan.setY(prevY + pointer.downY - pointer.y);
+        });
+    }
+
     create() {
         this.t = 0;
         this.paused = false;
-        this.cameras.main.scrollY = -TILE_DIMENSION * 2;
         this.fundIncrement = 0;
 
         this.map = this.make.tilemap({ key: 'map' });
@@ -69,6 +94,7 @@ export default class PlatformerScene extends Phaser.Scene {
         worldLayer.setCollisionByProperty({ collides: true });
         this.worldLayer = worldLayer;
 
+        this.initCamera();
         this.buildUi();
 
         this.business = new Business({ onFundsChange: this.onFundsChange.bind(this) });

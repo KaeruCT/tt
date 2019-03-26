@@ -1,8 +1,7 @@
 import Phaser from 'phaser';
 import { TILE_DIMENSION } from '../utils/misc';
-import { Relief, RELIEF_TYPES } from '../logic/relief';
+import { Relief } from '../logic/relief';
 import { Hair, Clothes } from './EmployeeDecorations';
-import { randRange } from '../utils/rand';
 
 export default class Employee extends Phaser.GameObjects.Sprite {
     constructor(scene, meta, x, y, pathFinder) {
@@ -61,8 +60,6 @@ export default class Employee extends Phaser.GameObjects.Sprite {
     }
 
     setDestination(destination) {
-        if (destination.id !== this.meta.desk.id) this.previousDestination = destination;
-
         this.working = false;
         return new Promise((resolve, reject) => {
             this.destination = destination;
@@ -234,12 +231,6 @@ export default class Employee extends Phaser.GameObjects.Sprite {
             } else {
                 pathFinder.calculate();
             }
-        }
-
-        if (relief && relief.expirationTime && time > relief.expirationTime) {
-            this.setRelief(null);
-            this.triggerRestroomAttempt(() => this.previousDestination);
-            setTimeout(() => this.releaseInPlace(relief), randRange(1000, 3000));
         }
 
         this.decorations.forEach(d => d.update());

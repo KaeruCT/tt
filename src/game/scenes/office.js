@@ -301,8 +301,8 @@ export default class PlatformerScene extends Phaser.Scene {
 
     findReliefPoint(reliefId) {
         let points = this.reliefPoints.getChildren().filter(p => p.supportsRelief(reliefId));
-        let cleanPoints = points.filter(p => !p.broken);
-        return randValue(cleanPoints.length ? cleanPoints : points);
+        let cleanAndEmptyPoints = points.filter(p => !p.busy && !p.meta.broken);
+        return randValue(cleanAndEmptyPoints.length ? cleanAndEmptyPoints : points);
     }
 
     onFundsChange(amount) {
@@ -332,17 +332,25 @@ export default class PlatformerScene extends Phaser.Scene {
                 // update path finder (not so often)
                 e.pathFinder.setGrid(createGrid(this.map, 'World', getEmployeesCoords(this.employees, e)));
 
-                const reliefInProgress = e.relief && e.relief.inProgress;
+                const relief = e.relief;
 
-                if (!e.relief && time > e.nextReliefMinTime && randBool(0.1)) {
+                if (!relief && time > e.nextReliefMinTime && randBool(0.1)) {
                     // somebody has to go...
                     e.setRelief(randBool(0.65) ? RELIEF_TYPES.pee : RELIEF_TYPES.poo);
                     e.triggerRestroomAttempt(this.findReliefPoint.bind(this));
                 }
 
-                if (t % 500 === 0 && e.relief && !reliefInProgress && e.relief.shouldAttemptAgain(t)) {
-                    // somebody wasn't able to go, needs to check restroom again
-                    e.triggerRestroomAttempt(this.findReliefPoint.bind(this));
+                if (relief) {
+                    if (t % 500 === 0 && !relief.inProgress && relief.shouldAttemptAgain(t)) {
+                        // somebody wasn't able to go, needs to check restroom again
+                        e.triggerRestroomAttempt(this.findReliefPoint.bind(this));
+                    }
+
+                    if (relief.expirationTime && time > relief.expirationTime) {
+                        e.triggerRestroomAttempt(this.findReliefPoint.bind(this));
+                        e.setRelief(null);
+                        setTimeout(() => e.releaseInPlace(relief), randRange(500, 200));
+                    }
                 }
             }
 

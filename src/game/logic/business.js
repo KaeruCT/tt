@@ -51,6 +51,12 @@ export class Business {
         this.droppings.push(d.meta);
     }
 
+    removeDropping(d) {
+        remove(this.droppings, {
+            id: d.meta.id
+        });
+    }
+
     addReliefPoint(r) {
         this.reliefPoints.push(r.meta);
     }

@@ -349,7 +349,7 @@ export default class PlatformerScene extends Phaser.Scene {
                     if (relief.expirationTime && time > relief.expirationTime) {
                         e.triggerRestroomAttempt(this.findReliefPoint.bind(this));
                         e.setRelief(null);
-                        setTimeout(() => e.releaseInPlace(relief), randRange(500, 200));
+                        setTimeout(() => e.releaseInPlace(relief), randRange(500, 2000));
                     }
                 }
             }

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { TILE_DIMENSION } from '../utils/misc';
+import { TILE_DIMENSION, generateUUID } from '../utils/misc';
 import { Relief } from '../logic/relief';
 import { Hair, Clothes } from './EmployeeDecorations';
 
@@ -246,7 +246,7 @@ export default class Employee extends Phaser.GameObjects.Sprite {
         const { scene, meta, x, y } = this;
         console.log('Oh no! Employee', meta.name, 'could not hold their', relief.id);
         meta.sadness += 1;
-        scene.addDropping({ reliefId: relief.id, x, y });
+        scene.addDropping({ id: generateUUID(), reliefId: relief.id, x, y });
         relief.forcedFinish();
         this.meta.stats[relief.id].outside += 1;
 

@@ -2,10 +2,10 @@ import { randRange } from '../utils/rand';
 
 const RELIEF_POO = {
     id: 'poo',
-    time: { min: 5, max: 15 },
-    limit: { min: 30, max: 60 },
+    time: { min: 5, max: 10 },
+    limit: { min: 40, max: 60 },
     cooldown: 30,
-    attemptCooldown: 20,
+    attemptCooldown: 10,
     supported: ['pee', 'poo'],
     minPointUsages: 3,
     fixPointTime: 5,
@@ -13,10 +13,10 @@ const RELIEF_POO = {
 
 const RELIEF_PEE = {
     id: 'pee',
-    time: { min: 1, max: 4 },
+    time: { min: 1, max: 5 },
     limit: { min: 20, max: 40 },
-    cooldown: 20,
-    attemptCooldown: 15,
+    cooldown: 15,
+    attemptCooldown: 5,
     supported: ['pee'],
     minPointUsages: 5,
     fixPointTime: 3,

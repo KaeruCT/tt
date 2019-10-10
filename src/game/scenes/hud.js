@@ -87,8 +87,8 @@ export default class HudScene extends Phaser.Scene {
         this.add.existing(this.toiletButton);
 
         this.resetButton = new Button(this, 4, 360, 'RESET', () => {
-            localStorage.removeItem('business');
             this.paused = true;
+            localStorage.removeItem('business');
             window.location.reload();    
         });
         this.add.existing(this.resetButton);

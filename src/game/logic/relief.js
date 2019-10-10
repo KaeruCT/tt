@@ -9,6 +9,7 @@ const RELIEF_POO = {
     supported: ['pee', 'poo'],
     minPointUsages: 3,
     fixPointTime: 5,
+    pointName: 'Toilet',
 };
 
 const RELIEF_PEE = {
@@ -20,6 +21,7 @@ const RELIEF_PEE = {
     supported: ['pee'],
     minPointUsages: 5,
     fixPointTime: 3,
+    pointName: 'Urinal',
 };
 
 export const RELIEF_TYPES = {

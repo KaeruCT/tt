@@ -4,7 +4,7 @@ import remove from 'lodash/remove';
 export class Business {
     constructor({ onFundsChange }) {
         this.name = 'Big Co. Inc';
-        this.funds = 200;
+        this.funds = 500;
         this.employees = [];
         this.employeeSalary = 10;
         this.employeeCost = 50;
@@ -70,9 +70,9 @@ export class Business {
         this.onFundsChange(inc);
     }
 
-    takeFunds(dec) {
+    takeFunds(dec, item) {
         this.funds -= dec;
-        this.onFundsChange(-dec);
+        this.onFundsChange(-dec, item);
     }
 
     getFunds() {
@@ -102,15 +102,16 @@ export class Business {
         this.takeFunds(total);
     }
 
-    doIfAffordable(fn, cost) {
+    doIfAffordable(fn, cost, item) {
         if (this.getFunds() >= cost) {
             const success = fn();
-            if (success) this.takeFunds(cost);
+            if (success) this.takeFunds(cost, item);
         }
     }
 
     employeeRemoval(e, type) {
-        if (type === 'fired') {
+        console.log(e, type, this);
+        if (type === 'fire') {
             this.employeeCost += 5;
         }
         if (type === 'quit') {

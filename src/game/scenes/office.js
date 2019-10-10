@@ -93,7 +93,9 @@ export default class OfficeScene extends Phaser.Scene {
         this.business = new Business({ onFundsChange: this.onFundsChange.bind(this) });
 
         const storedBusiness = localStorage.getItem('business');
-        if (storedBusiness) {
+        const reset = localStorage.getItem('reset');
+        localStorage.removeItem('reset');
+        if (storedBusiness && !reset) {
             this.business.load(JSON.parse(storedBusiness));
         }
 
@@ -176,6 +178,7 @@ export default class OfficeScene extends Phaser.Scene {
             desk.meta.employeeId = null;
         }
         this.business.employeeRemoval(e, type);
+        this.hud.selectEmployee(null);
     }
 
     addEmployee(storedMeta = null) {
@@ -229,12 +232,12 @@ export default class OfficeScene extends Phaser.Scene {
     }
 
     hireEmployee() {
-        this.business.doIfAffordable(() => this.addEmployee(), this.business.employeeCost);
+        this.business.doIfAffordable(() => this.addEmployee(), this.business.employeeCost, 'Employee');
     }
 
     buyReliefPoint(reliefId) {
         const cost = this.business.getFacilityCost(reliefId);
-        this.business.doIfAffordable(() => this.addReliefPoint(reliefId), cost);
+        this.business.doIfAffordable(() => this.addReliefPoint(reliefId), cost, RELIEF_TYPES[reliefId].pointName);
     }
 
     findReliefPoint(reliefId) {
@@ -247,8 +250,8 @@ export default class OfficeScene extends Phaser.Scene {
         this.hud.selectEmployee(e);
     }
 
-    onFundsChange(amount) {
-        this.hud.onFundsChange(amount);
+    onFundsChange(amount, item) {
+        this.hud.onFundsChange(amount, item);
     }
 
     update(time, delta) {

@@ -158,7 +158,6 @@ export default class Employee extends Phaser.GameObjects.Sprite {
     onEmployeeRemoval(type) {
         this.scene.removeEmployee(this, type);
         if (this.relief && this.reliefPoint) this.relief.release(this.reliefPoint);
-        if (this.scene.selectedEmployee === this) this.scene.selectEmployee(null);
         this.decorations.forEach(d => d.destroy());
         this.destroy();
     }

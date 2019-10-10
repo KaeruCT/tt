@@ -39,24 +39,24 @@ export default class HudScene extends Phaser.Scene {
             .setScrollFactor(0)
             .setDepth(9999);
 
-        this.overlay.fillRect(padding, padding*2, width - padding*2, height - padding*4);
+        this.overlay.fillRect(padding, padding * 2, width - padding * 2, height - padding * 4);
 
-        this.employeeInfo = new Text(this, padding+1, padding*2+1)
+        this.employeeInfo = new Text(this, padding + 1, padding * 2 + 1)
             .setDepth(9999);
         this.employeeInfo.setText(this.getEmployeeInfo(this.selectedEmployee));
         this.add.existing(this.employeeInfo);
 
-        this.fireButton = new Button(this, padding+1, 200, 'FIRE', () => {
+        this.fireButton = new Button(this, padding + 1, 200, 'FIRE', () => {
             this.selectedEmployee.fire();
         }).setDepth(9999);
         this.add.existing(this.fireButton);
 
-        this.employeeStats = new Text(this, padding+40, 200)
+        this.employeeStats = new Text(this, padding + 40, 200)
             .setDepth(9999);
         this.employeeStats.setText(this.getEmployeeStats(this.selectedEmployee));
         this.add.existing(this.employeeStats);
 
-        this.closeButton = new Button(this, width - padding*2, padding*2+1, 'X', () => {
+        this.closeButton = new Button(this, width - padding * 2, padding * 2 + 1, 'X', () => {
             this.selectEmployee(null);
         }).setDepth(9999);
         this.add.existing(this.closeButton);
@@ -71,41 +71,43 @@ export default class HudScene extends Phaser.Scene {
         this.fundsBox = new Text(this, 20, 4);
         this.add.existing(this.fundsBox);
 
-        this.hireButton = new Button(this, 150, 4, ' + ', () => {
+        this.hireButton = new Button(this, 100, 4, 'EMPLOYEE', () => {
             this.office.hireEmployee();
         });
         this.add.existing(this.hireButton);
 
-        this.pissoirButton = new Button(this, 180, 4, 'PEE', () => {
+        this.pissoirButton = new Button(this, 168, 4, 'URNL', () => {
             this.office.buyReliefPoint(RELIEF_TYPES.pee.id);
         });
         this.add.existing(this.pissoirButton);
 
-        this.toiletButton = new Button(this, 210, 4, 'POO', () => {
+        this.toiletButton = new Button(this, 210, 4, 'TLT', () => {
             this.office.buyReliefPoint(RELIEF_TYPES.poo.id);
         });
         this.add.existing(this.toiletButton);
 
         this.resetButton = new Button(this, 4, 360, 'RESET', () => {
             this.paused = true;
-            localStorage.removeItem('business');
-            window.location.reload();    
+            localStorage.setItem('reset', true);
+            window.location.reload();
         });
         this.add.existing(this.resetButton);
 
-        const { width } = this.cameras.main.worldView;
+        this.priceInfo = new Text(this, 50, 360, '');
+        this.add.existing(this.priceInfo);
+
         this.bg = this.add.graphics()
             .setScrollFactor(0)
             .setDepth(998);
         this.bg.fillStyle(0x000000, 0.6);
-        this.bg.fillRect(0, 0, 320, TILE_DIMENSION*2);
+        this.bg.fillRect(0, 0, 320, TILE_DIMENSION * 2);
 
         this.graphics = this.add.graphics()
             .setScrollFactor(0)
             .setDepth(999);
     }
 
-    onFundsChange(amount) {
+    onFundsChange(amount, item) {
         if (!this.fundsBox) return;
         const positive = amount > 0;
         const symbol = positive ? '+' : '-';
@@ -120,6 +122,30 @@ export default class HudScene extends Phaser.Scene {
             y: this.fundsBox.y + (positive ? 0 : dist),
             onComplete: () => text.destroy(),
             duration: 300,
+        });
+
+        if (item) {
+            this.onPurchase(item);
+        }
+    }
+
+    onPurchase(item) {
+        const { game } = this.sys;  
+        const style = {
+            ...light,
+            backgroundColor: '#000000aa',
+            align: 'center',
+            fontSize: '26px',
+        };
+        const text = new Text(this, game.config.width/2, game.config.height/2, `+1 ${item}`, style);
+        text.setOrigin(0.5);
+        this.add.existing(text);
+
+        this.tweens.add({
+            targets: text,
+            alpha: 0,
+            onComplete: () => text.destroy(),
+            duration: 1500,
         });
     }
 
@@ -148,7 +174,7 @@ export default class HudScene extends Phaser.Scene {
 
     getEmployeeStats(e) {
         const { stats } = e.meta;
-        const f = (d) => Math.floor(d/1000);
+        const f = (d) => Math.floor(d / 1000);
 
         let info = 'Time...\n';
         info += ` - Working: ${f(stats.work.duration)}\n`;
@@ -161,12 +187,22 @@ export default class HudScene extends Phaser.Scene {
         return info;
     }
 
+    getCostsText() {
+        const { business } = this.office;
+        const employeeCost = business.employeeCost;
+        const employeeSalary = business.employeeSalary;
+        const peeCost = business.getFacilityCost(RELIEF_TYPES.pee.id);
+        const pooCost = business.getFacilityCost(RELIEF_TYPES.poo.id);
+        return `EMPLOYEE: $${employeeCost} ($${employeeSalary} daily)\nURNL: $${peeCost} - TLT: $${pooCost}`;
+    }
+
     updateUi() {
         const { business } = this.office;
         if (!business) return;
 
         const { currentTime, dayLength } = business;
         this.fundsBox.setText(`${business.getFormattedFunds()}`);
+        this.priceInfo.setText(this.getCostsText());
 
         const dayCompletion = dayLength - currentTime / dayLength;
         const rad = 6;

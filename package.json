@@ -13,7 +13,7 @@
   "license": "ISC",
   "dependencies": {
     "easystarjs": "^0.4.3",
-    "lodash": "^4.17.11",
+    "lodash": "^4.17.19",
     "normalize.css": "^8.0.0",
     "phaser": "^3.16.2"
   },

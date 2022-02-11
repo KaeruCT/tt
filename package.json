@@ -18,7 +18,7 @@
     "phaser": "^3.16.2"
   },
   "devDependencies": {
-    "ajv": "^6.3.0",
+    "ajv": "^6.12.3",
     "autoprefixer": "^9.3.1",
     "babel-core": "^6.26.3",
     "babel-loader": "^7.1.4",

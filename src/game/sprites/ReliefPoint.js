@@ -11,6 +11,8 @@ export default class ReliefPoint extends Phaser.GameObjects.Sprite {
     this.meta = meta;
     this.busy = false;
     this.fixing = false;
+    this.gridX = meta.gridX;
+    this.gridY = meta.gridY;
 
     this.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.startFixing());
 
@@ -51,12 +53,20 @@ export default class ReliefPoint extends Phaser.GameObjects.Sprite {
       frameRate: 10,
       repeat: -1,
     });
-    this.flipX = true; // TODO: this might not make sense for the final sprite
+    anims.create({
+      key: 'sink',
+      frames: anims.generateFrameNumbers('relief_point', { start: 0, end: 0 }),
+      frameRate: 10,
+      repeat: -1,
+    });
+    this.flipX = true;
     this.updateAnimation();
   }
 
   supportsRelief(reliefId) {
-    return RELIEF_TYPES[this.reliefId].supported.includes(reliefId);
+    const type = RELIEF_TYPES[this.reliefId];
+    if (!type) return false;
+    return type.supported.includes(reliefId);
   }
 
   beginUsing() {
@@ -67,23 +77,26 @@ export default class ReliefPoint extends Phaser.GameObjects.Sprite {
     const relief = RELIEF_TYPES[this.reliefId];
     this.busy = false;
     this.meta.usages += 1;
-    if (this.meta.usages >= relief.minPointUsages && randBool(0.8)) {
-      this.meta.broken = true;
-      this.updateAnimation();
+
+    // Check breakage
+    const durabilityMult = this._getUpgradeEffect('durabilityMultiplier') || 1;
+    const effectiveMinUsages = Math.floor(relief.minPointUsages * durabilityMult);
+    if (this.meta.usages >= effectiveMinUsages && randBool(0.8)) {
+      if (!this._getUpgradeEffect('unbreakable')) {
+        this.meta.broken = true;
+        this.updateAnimation();
+      }
     }
   }
 
   startFixing() {
     if (this.fixing) return;
-
-    const { business } = this.scene;
-    const cost = business.getFacilityFixCost(this.reliefId);
-    business.doIfAffordable(() => {
-      const relief = RELIEF_TYPES[this.reliefId];
-
+    const { economy } = this.scene;
+    const cost = economy.getFacilityFixCost(this.reliefId);
+    economy.doIfAffordable(() => {
       this.fixing = true;
       this.updateAnimation();
-      setTimeout(() => this.fix(), relief.fixPointTime * 1000);
+      this.scene.time.delayedCall(RELIEF_TYPES[this.reliefId].fixPointTime * 1000, () => this.fix());
       return true;
     }, cost);
   }
@@ -96,8 +109,32 @@ export default class ReliefPoint extends Phaser.GameObjects.Sprite {
   }
 
   canUse() {
-    return !this.fixing && !this.meta.broken && !this.busy;
+    return !this.fixing && !this.meta.broken && !this.busy && !this.meta.flooded;
   }
+
+  // --- Upgrades ---
+
+  hasUpgrade(upgradeId) {
+    return this.meta.upgrades?.includes(upgradeId) || false;
+  }
+
+  addUpgrade(upgradeId) {
+    if (!this.meta.upgrades) this.meta.upgrades = [];
+    if (!this.meta.upgrades.includes(upgradeId)) {
+      this.meta.upgrades.push(upgradeId);
+    }
+  }
+
+  _getUpgradeEffect(effectKey) {
+    if (!this.meta.upgrades) return null;
+    // Import UPGRADES dynamically to avoid circular dep
+    // For now, hardcode known effects
+    if (effectKey === 'durabilityMultiplier' && this.meta.upgrades.includes('premium_stall')) return 1.5;
+    if (effectKey === 'unbreakable' && this.meta.upgrades.includes('magical_plumbing')) return true;
+    return null;
+  }
+
+  // --- Animation ---
 
   updateAnimation() {
     this.anims.play(this.getAnimation(), true);
@@ -105,16 +142,16 @@ export default class ReliefPoint extends Phaser.GameObjects.Sprite {
 
   getAnimation() {
     const { reliefId } = this;
-    let prefix;
-    if (reliefId === RELIEF_TYPES.poo.id) {
-      prefix = 'toilet';
+    if (reliefId === 'poo') {
+      if (this.fixing) return 'toilet_cleaning';
+      if (this.meta.broken) return 'toilet_dirty';
+      return 'toilet';
     }
-    if (reliefId === RELIEF_TYPES.pee.id) {
-      prefix = 'pissoir';
+    if (reliefId === 'pee' || reliefId === 'wash_hands' || reliefId === 'shower') {
+      if (this.fixing) return 'pissoir_cleaning';
+      if (this.meta.broken) return 'pissoir_dirty';
+      return 'pissoir';
     }
-
-    if (this.fixing) return `${prefix}_cleaning`;
-    if (this.meta.broken) return `${prefix}_dirty`;
-    return `${prefix}`;
+    return 'pissoir';
   }
 }

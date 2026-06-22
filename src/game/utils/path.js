@@ -1,12 +1,18 @@
+/**
+ * Pathfinding utilities.
+ * Pathfinding is now handled directly by TilemapManager via EasyStar.
+ * This file is kept for backward compatibility and exports.
+ */
 import EasyStar from 'easystarjs';
 
-const EMPTY = -1;
-const OBSTACLE = 999999;
+/**
+ * Create an EasyStar finder for a given tileset.
+ * @deprecated Use TilemapManager.findPath() instead.
+ */
 export const createFinder = (tileset) => {
   const finder = new EasyStar.js();
-
   const properties = tileset.tileProperties;
-  const acceptableTiles = [EMPTY];
+  const acceptableTiles = [-1];
 
   for (let i = tileset.firstgid - 1; i < tileset.total; i++) {
     if (!properties[i]) {
@@ -14,13 +20,16 @@ export const createFinder = (tileset) => {
       continue;
     }
     if (!properties[i].collides) acceptableTiles.push(i + 1);
-    if (properties[i].cost) Game.finder.setTileCost(i + 1, properties[i].cost);
   }
   finder.setAcceptableTiles(acceptableTiles);
   finder.enableSync();
   return finder;
 };
 
+/**
+ * Create a 2D grid from a Tiled map layer.
+ * @deprecated Use TilemapManager.getPathfindingGrid() instead.
+ */
 export const createGrid = (map, layer, obstacles) => {
   const grid = [];
   for (let y = 0; y < map.height; y++) {
@@ -30,16 +39,13 @@ export const createGrid = (map, layer, obstacles) => {
     }
     grid.push(col);
   }
-  let ignore;
   obstacles.forEach((o) => {
-    grid[o.x][o.y] = OBSTACLE;
-    if (o.ignore) ignore = o;
+    grid[o.x][o.y] = 999999;
   });
-  if (ignore) grid[ignore.x][ignore.y] = EMPTY;
   return grid;
 };
 
 const getTileID = (map, layer, x, y) => {
   const tile = map.getTileAt(x, y, true, layer);
-  return tile.index;
+  return tile ? tile.index : -1;
 };

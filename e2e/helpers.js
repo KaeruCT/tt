@@ -1,9 +1,6 @@
 /**
  * Playwright helpers for testing the Phaser 3 Toilet Game.
- *
- * All game interaction happens via page.evaluate() since the UI is
- * rendered on a Canvas. Access is through window.__game (exposed in
- * development mode by src/game/index.js).
+ * Updated for the dynamic tilemap + day/night cycle architecture.
  */
 
 /**
@@ -14,11 +11,9 @@ export async function waitForGame(page) {
   await page.waitForFunction(() => window.__game !== undefined, null, { timeout: 10_000 });
   await page.waitForFunction(
     () => {
-      const game = window.__game;
-      if (!game) return false;
-      const office = game.scene.getScene('OfficeScene');
-      const hud = game.scene.getScene('HudScene');
-      return office && hud && office.business !== undefined && hud.fundsBox !== undefined;
+      const office = window.__officeScene;
+      if (!office) return false;
+      return office.economy !== undefined && office.tilemap !== undefined;
     },
     null,
     { timeout: 10_000 },
@@ -26,30 +21,30 @@ export async function waitForGame(page) {
 }
 
 /**
- * Get the OfficeScene's business object.
+ * Get basic business/economy state.
  */
 export async function getBusiness(page) {
   return page.evaluate(() => {
-    const office = window.__game.scene.getScene('OfficeScene');
+    const office = window.__officeScene;
     return {
-      funds: office.business.getFunds(),
-      formattedFunds: office.business.getFormattedFunds(),
+      funds: office.economy.getFunds(),
+      formattedFunds: office.economy.getFormattedFunds(),
       employeeCount: office.employees.getChildren().length,
       reliefPointCount: office.reliefPoints.getChildren().length,
-      currentDay: office.business.currentDay,
-      currentTime: office.business.currentTime,
-      employeeCost: office.business.employeeCost,
-      employeeSalary: office.business.employeeSalary,
+      currentDay: office.dayCycle.currentDay,
+      currentPhase: office.dayCycle.currentPhase,
+      employeeCost: office.economy.employeeCost,
+      employeeSalary: office.economy.employeeSalary,
     };
   });
 }
 
 /**
- * Hire an employee via the OfficeScene method.
+ * Hire an employee.
  */
 export async function hireEmployee(page) {
   return page.evaluate(() => {
-    const office = window.__game.scene.getScene('OfficeScene');
+    const office = window.__officeScene;
     const before = office.employees.getChildren().length;
     office.hireEmployee();
     return office.employees.getChildren().length > before;
@@ -57,15 +52,17 @@ export async function hireEmployee(page) {
 }
 
 /**
- * Buy a relief point (pee or poo).
- * @param {'pee'|'poo'} reliefId
+ * Place a relief point directly.
  */
 export async function buyReliefPoint(page, reliefId = 'pee') {
   return page.evaluate((id) => {
-    const office = window.__game.scene.getScene('OfficeScene');
-    const before = office.reliefPoints.getChildren().length;
-    office.buyReliefPoint(id);
-    return office.reliefPoints.getChildren().length > before;
+    const office = window.__officeScene;
+    const tm = office.tilemap;
+    const emptyTiles = tm.getEmptyFloorTiles();
+    if (emptyTiles.length === 0) return false;
+    const pos = emptyTiles[0];
+    const rp = office.placeObject(pos.x, pos.y, id);
+    return rp !== null;
   }, reliefId);
 }
 
@@ -74,7 +71,7 @@ export async function buyReliefPoint(page, reliefId = 'pee') {
  */
 export async function fireFirstEmployee(page) {
   return page.evaluate(() => {
-    const office = window.__game.scene.getScene('OfficeScene');
+    const office = window.__officeScene;
     const employees = office.employees.getChildren();
     if (!employees.length) return false;
     employees[0].fire();
@@ -83,40 +80,40 @@ export async function fireFirstEmployee(page) {
 }
 
 /**
- * Get employee details for all current employees.
+ * Get employee details.
  */
 export async function getEmployees(page) {
   return page.evaluate(() => {
-    const office = window.__game.scene.getScene('OfficeScene');
+    const office = window.__officeScene;
     return office.employees.getChildren().map((e) => ({
       id: e.meta.id,
       name: e.meta.name,
       working: e.working,
       sadness: e.meta.sadness,
+      traits: (e.meta.traits || []).map((t) => t.name),
       relief: e.relief ? { id: e.relief.id, inProgress: e.relief.inProgress } : null,
     }));
   });
 }
 
 /**
- * Advance game time by a given number of seconds.
- * Calls the update loop directly to simulate time passing.
+ * Advance game time by calling day cycle update with delta ms.
  */
 export async function advanceTime(page, seconds) {
   return page.evaluate((secs) => {
-    const office = window.__game.scene.getScene('OfficeScene');
-    const delta = secs * 1000;
-    office.business.passTime(delta);
+    const office = window.__officeScene;
+    office.dayCycle.update(secs * 1000);
   }, seconds);
 }
 
 /**
- * Save and reload the page, verifying state persistence.
- * Returns the business state after reload.
+ * Save and reload the page.
  */
 export async function reloadAndGetBusiness(page) {
-  // Trigger a save by advancing time slightly
-  await advanceTime(page, 0.1);
+  await page.evaluate(() => {
+    const office = window.__officeScene;
+    office.business.save(office.economy, office.dayCycle, office.eventManager);
+  });
   await page.reload();
   await waitForGame(page);
   return getBusiness(page);
@@ -124,7 +121,6 @@ export async function reloadAndGetBusiness(page) {
 
 /**
  * Clear saved game state from localStorage.
- * Navigates to the app first to ensure a valid origin.
  */
 export async function clearSave(page) {
   await page.goto('/');

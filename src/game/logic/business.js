@@ -1,38 +1,18 @@
 import remove from 'lodash/remove';
 import { RELIEF_TYPES } from './relief';
 
+/**
+ * Business manager handles employee tracking, save/load, and coordinates
+ * with EconomyManager for financial operations.
+ */
 export class Business {
-  constructor({ onFundsChange }) {
-    this.name = 'Big Co. Inc';
-    this.funds = 200;
+  constructor({ onFundsChange } = {}) {
     this.employees = [];
-    this.employeeSalary = 10;
-    this.employeeCost = 50;
-    this.dayLength = 60;
-    this.currentTime = 0;
-    this.currentDay = 0;
-    this.facilityCost = {
-      [RELIEF_TYPES.pee.id]: 100,
-      [RELIEF_TYPES.poo.id]: 200,
-    };
-    this.droppingCleanCost = {
-      [RELIEF_TYPES.pee.id]: 1,
-      [RELIEF_TYPES.poo.id]: 3,
-    };
-    this.facilityFixCost = {
-      [RELIEF_TYPES.pee.id]: 2,
-      [RELIEF_TYPES.poo.id]: 5,
-    };
     this.reliefPoints = [];
     this.droppings = [];
+    this.employeeCost = 50;
+    this.employeeSalary = 10;
     this.onFundsChange = onFundsChange;
-  }
-
-  load(data) {
-    Object.keys(this).forEach((k) => {
-      if (typeof this[k] === 'function') return;
-      this[k] = data[k];
-    });
   }
 
   getEmployees() {
@@ -52,9 +32,7 @@ export class Business {
   }
 
   removeDropping(d) {
-    remove(this.droppings, {
-      id: d.meta.id,
-    });
+    remove(this.droppings, { id: d.meta.id });
   }
 
   addReliefPoint(r) {
@@ -65,50 +43,6 @@ export class Business {
     return this.reliefPoints;
   }
 
-  addFunds(inc) {
-    this.funds += inc;
-    this.onFundsChange(inc);
-  }
-
-  takeFunds(dec) {
-    this.funds -= dec;
-    this.onFundsChange(-dec);
-  }
-
-  getFunds() {
-    return Math.floor(this.funds);
-  }
-
-  getFormattedFunds() {
-    let funds = `$${this.getFunds()}`;
-    funds = funds.replace('$-', '-$');
-    return funds;
-  }
-
-  getFacilityCost(reliefId) {
-    return this.facilityCost[reliefId];
-  }
-
-  getFacilityFixCost(reliefId) {
-    return this.facilityFixCost[reliefId];
-  }
-
-  getDroppingCleanCost(reliefId) {
-    return this.droppingCleanCost[reliefId];
-  }
-
-  paySalaries() {
-    const total = this.employees.length * this.employeeSalary;
-    this.takeFunds(total);
-  }
-
-  doIfAffordable(fn, cost) {
-    if (this.getFunds() >= cost) {
-      const success = fn();
-      if (success) this.takeFunds(cost);
-    }
-  }
-
   employeeRemoval(e, type) {
     if (type === 'fired') {
       this.employeeCost += 5;
@@ -117,21 +51,42 @@ export class Business {
       this.employeeCost += 10;
       this.employeeSalary += 5;
     }
-
-    remove(this.employees, {
-      id: e.meta.id,
-    });
+    remove(this.employees, { id: e.meta.id });
   }
 
-  passTime(delta) {
-    this.currentTime += delta / 1000;
+  /**
+   * Save business state to localStorage along with other game systems.
+   */
+  save(economy, dayCycle, eventManager) {
+    const state = {
+      employees: this.employees,
+      reliefPoints: this.reliefPoints,
+      droppings: this.droppings,
+      employeeCost: this.employeeCost,
+      employeeSalary: this.employeeSalary,
+      economy: economy.save(),
+      dayCycle: dayCycle.save(),
+      events: eventManager.save(),
+    };
+    localStorage.setItem('business', JSON.stringify(state));
+  }
 
-    if (this.currentTime > this.dayLength) {
-      this.currentDay += 1;
-      this.paySalaries();
-      this.currentTime = 0;
-    }
+  /**
+   * Load all game state from localStorage.
+   */
+  load(data, economy, dayCycle, eventManager) {
+    if (!data) return false;
 
-    localStorage.setItem('business', JSON.stringify(this));
+    this.employees = data.employees || [];
+    this.reliefPoints = data.reliefPoints || [];
+    this.droppings = data.droppings || [];
+    this.employeeCost = data.employeeCost || 50;
+    this.employeeSalary = data.employeeSalary || 10;
+
+    if (economy && data.economy) economy.load(data.economy);
+    if (dayCycle && data.dayCycle) dayCycle.load(data.dayCycle);
+    if (eventManager && data.events) eventManager.load(data.events, Object.values(RELIEF_TYPES));
+
+    return true;
   }
 }

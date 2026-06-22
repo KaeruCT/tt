@@ -1,8 +1,11 @@
+import 'normalize.css/normalize.css';
+import './styles/index.scss';
+import './game/index.js';
 
-require('normalize.css/normalize.css');
-require('./styles/index.scss');
-require('./game/index.js');
-
-window.addEventListener('touchmove', function(event) {
+window.addEventListener(
+  'touchmove',
+  (event) => {
     event.preventDefault();
-}, false);
+  },
+  false,
+);

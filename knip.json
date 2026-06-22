@@ -1,0 +1,9 @@
+{
+  "entry": ["src/index.js"],
+  "project": ["src/**/*.js"],
+  "vite": {
+    "config": ["vite.config.mjs"]
+  },
+  "ignore": ["dist/**"],
+  "ignoreDependencies": ["phaser", "easystarjs", "lodash"]
+}

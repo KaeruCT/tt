@@ -5,7 +5,7 @@ import { RELIEF_TYPES } from '../logic/relief';
  */
 export default class EconomyManager {
   constructor({ onFundsChange, onDailyReport } = {}) {
-    this.funds = 200;
+    this.funds = 300;
     this.totalRevenue = 0;
     this.totalExpenses = 0;
     this.onFundsChange = onFundsChange;

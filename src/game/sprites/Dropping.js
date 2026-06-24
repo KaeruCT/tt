@@ -28,9 +28,9 @@ export default class Dropping extends Phaser.GameObjects.Sprite {
   }
 
   fix() {
-    const { business } = this.scene;
-    const cost = business.getDroppingCleanCost(this.reliefId);
-    business.doIfAffordable(() => {
+    const { economy, business } = this.scene;
+    const cost = economy.getDroppingCleanCost(this.reliefId);
+    economy.doIfAffordable(() => {
       business.removeDropping(this);
       this.destroy();
       return true;

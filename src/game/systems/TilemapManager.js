@@ -5,10 +5,12 @@ export const MAP_COLS = 30;
 export const MAP_ROWS = 20;
 
 // Tile indices in the Dungeon_Tileset (30×30 grid of 16×16 tiles).
-// 0-based (Phaser blank tilemap firstgid=0). These match tiles used in the
-// original Tiled maps: Tiled GID 7 → index 6 (floor), GID 182 → 181 (wall).
-const TILE_FLOOR_STONE = 6;
-const TILE_FLOOR_CARPET = 62;
+// 0-based (Phaser blank tilemap firstgid=0).
+// Verified against original Tiled maps:
+//  92 (GID 93) — decorative tiled floor with visible pattern, clearly not a wall
+// Wall/Rock: 181 (GID 182) — distinct dark dungeon wall
+const TILE_FLOOR_STONE = 92;
+const TILE_FLOOR_CARPET = 91;
 const TILE_WALL = 181;
 const TILE_ROCK = 181;
 
@@ -291,5 +293,38 @@ export default class TilemapManager {
 
   _rebuildPathfinding() {
     this.finder.setGrid(this.getPathfindingGrid());
+  }
+
+  /**
+   * Serialize tilemap grid for save/load.
+   */
+  save() {
+    const gridCopy = [];
+    for (let y = 0; y < this.rows; y++) {
+      gridCopy[y] = [];
+      for (let x = 0; x < this.cols; x++) {
+        gridCopy[y][x] = {
+          type: this.grid[y][x].type,
+          object: this.grid[y][x].object,
+        };
+      }
+    }
+    return { cols: this.cols, rows: this.rows, grid: gridCopy };
+  }
+
+  /**
+   * Restore tilemap grid from saved data.
+   */
+  load(data) {
+    if (!data?.grid) return;
+    for (let y = 0; y < this.rows && y < data.rows; y++) {
+      for (let x = 0; x < this.cols && x < data.cols; x++) {
+        if (data.grid[y]?.[x]) {
+          this.setTileType(x, y, data.grid[y][x].type);
+          this.grid[y][x].object = data.grid[y][x].object || null;
+        }
+      }
+    }
+    this._rebuildPathfinding();
   }
 }

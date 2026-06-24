@@ -30,6 +30,12 @@ export default class Employee extends Phaser.GameObjects.Sprite {
 
     this.decorations = [new Hair(this, meta.hair), new Clothes(this, meta.clothes)];
 
+    // Needs indicator (emoji floating above head)
+    this.needsIndicator = scene.add
+      .text(x, y - 14, '', { fontSize: '10px', fontFamily: 'monospace' })
+      .setOrigin(0.5)
+      .setDepth(99999);
+
     this.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.scene.selectEmployee(this));
 
     const { anims } = this.scene;
@@ -250,6 +256,21 @@ export default class Employee extends Phaser.GameObjects.Sprite {
     }
 
     this.decorations.forEach((d) => d.update());
+
+    // Update needs indicator
+    if (this.needsIndicator) {
+      this.needsIndicator.setPosition(this.x, this.y - 14);
+      if (this.relief && !this.relief.inProgress) {
+        const icons = { pee: '💧', poo: '💩', wash_hands: '🧼', shower: '🚿', smoke_break: '🚬' };
+        this.needsIndicator.setText(icons[this.relief.id] || '❓');
+        this.needsIndicator.setAlpha(0.7 + Math.sin(this.time * 0.005) * 0.3);
+      } else if (this.relief?.inProgress) {
+        this.needsIndicator.setText('⏳');
+        this.needsIndicator.setAlpha(0.8);
+      } else {
+        this.needsIndicator.setText('');
+      }
+    }
 
     if (this.working) {
       meta.stats.work.duration += delta;

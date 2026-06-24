@@ -57,7 +57,7 @@ export class Business {
   /**
    * Save business state to localStorage along with other game systems.
    */
-  save(economy, dayCycle, eventManager) {
+  save(economy, dayCycle, eventManager, tilemap) {
     const state = {
       employees: this.employees,
       reliefPoints: this.reliefPoints,
@@ -67,15 +67,17 @@ export class Business {
       economy: economy.save(),
       dayCycle: dayCycle.save(),
       events: eventManager.save(),
+      tilemap: tilemap ? tilemap.save() : null,
     };
     localStorage.setItem('business', JSON.stringify(state));
   }
 
   /**
    * Load all game state from localStorage.
+   * Returns the stored tilemap data (if any) for the scene to restore.
    */
   load(data, economy, dayCycle, eventManager) {
-    if (!data) return false;
+    if (!data) return null;
 
     this.employees = data.employees || [];
     this.reliefPoints = data.reliefPoints || [];
@@ -87,6 +89,6 @@ export class Business {
     if (dayCycle && data.dayCycle) dayCycle.load(data.dayCycle);
     if (eventManager && data.events) eventManager.load(data.events, Object.values(RELIEF_TYPES));
 
-    return true;
+    return data.tilemap || null;
   }
 }

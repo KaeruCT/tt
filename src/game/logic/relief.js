@@ -136,6 +136,12 @@ export class Relief {
     this.onStart();
     this.inProgress = true;
 
+    // Extend expiration so it doesn't fire while using the facility
+    if (this.expirationTime) {
+      const { max } = relief.time;
+      this.expirationTime += max * 1000 + 5000;
+    }
+
     const { min, max } = relief.time;
     const reliefTime = randRange(min * 1000, max * 1000);
 

@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { Business } from '../logic/business';
 import { RELIEF_TYPES } from '../logic/relief';
+import DecorSprite from '../sprites/Decor';
+import Desk from '../sprites/Desk';
 import Dropping from '../sprites/Dropping';
 import Employee from '../sprites/Employee';
 import ReliefPoint from '../sprites/ReliefPoint';
@@ -148,7 +150,11 @@ export default class OfficeScene extends Phaser.Scene {
     const stored = localStorage.getItem('business');
     if (stored) {
       const data = JSON.parse(stored);
-      this.business.load(data, this.economy, this.dayCycle, this.eventManager);
+      const tilemapData = this.business.load(data, this.economy, this.dayCycle, this.eventManager);
+      // Restore tilemap (dug tiles, placed objects like desks/decor)
+      if (tilemapData) {
+        this.tilemap.load(tilemapData);
+      }
     }
 
     // --- Camera ---
@@ -158,6 +164,8 @@ export default class OfficeScene extends Phaser.Scene {
     this.employees = this.add.group();
     this.reliefPoints = this.add.group();
     this.droppings = this.add.group();
+    this.desks = this.add.group();
+    this.decor = this.add.group();
 
     // --- Build mode state ---
     this.buildMode = BUILD_MODES.DIG;
@@ -170,18 +178,42 @@ export default class OfficeScene extends Phaser.Scene {
       for (const se of storedEmployees) {
         this.addEmployee(se);
       }
+
+      // Restore relief points from save
+      const storedReliefPoints = this.business.getReliefPoints();
+      for (const srp of storedReliefPoints) {
+        this.tilemap.setObject(srp.gridX, srp.gridY, srp.reliefId);
+        const pixelPos = this.tilemap.gridToPixel(srp.gridX, srp.gridY);
+        const reliefPoint = new ReliefPoint(this, {
+          id: srp.id,
+          reliefId: srp.reliefId,
+          x: pixelPos.x,
+          y: pixelPos.y,
+          gridX: srp.gridX,
+          gridY: srp.gridY,
+          broken: srp.broken || false,
+          usages: srp.usages || 0,
+          upgrades: srp.upgrades || [],
+        });
+        this.reliefPoints.add(reliefPoint);
+      }
+
       const droppings = this.business.getDroppings();
       for (const d of droppings) {
         this.addDropping(d, false);
       }
+
+      // Restore desk and decor sprites from tilemap grid
+      this._restoreObjectSprites();
     } else {
       // Fresh game: start with 1 employee
       this.addEmployee();
-      // Place one poo point in starting room
+      // Place a poo point and a pee point in the starting room
       const startTiles = this.tilemap.getEmptyFloorTiles();
-      if (startTiles.length > 0) {
-        const pos = startTiles[Math.floor(startTiles.length / 2)];
-        this.placeObject(pos.x, pos.y, 'poo');
+      if (startTiles.length >= 2) {
+        const mid = Math.floor(startTiles.length / 2);
+        this.placeObject(startTiles[mid].x, startTiles[mid].y, 'poo');
+        this.placeObject(startTiles[mid - 1].x, startTiles[mid - 1].y, 'pee');
       }
     }
 
@@ -240,10 +272,15 @@ export default class OfficeScene extends Phaser.Scene {
 
   _enterNight() {
     // Pause all employees
+    const nightDurationMs = this.dayCycle.nightDuration * 1000;
     this.employees.getChildren().forEach((e) => {
       e.body.setVelocity(0, 0);
       e.stopAnimations();
       e.nightPaused = true;
+      // Extend relief expiration so it doesn't expire while paused
+      if (e.relief?.expirationTime) {
+        e.relief.expirationTime += nightDurationMs;
+      }
     });
 
     // Un-flood any relief points from water main break
@@ -283,7 +320,16 @@ export default class OfficeScene extends Phaser.Scene {
     // Resume employees
     this.employees.getChildren().forEach((e) => {
       e.nightPaused = false;
-      e.goToDesk();
+      // Only return to desk if they don't have an active relief need.
+      // Employees with a need will resume their pathfinding next tick.
+      if (!e.relief) {
+        e.goToDesk();
+      } else {
+        // Re-trigger pathfinding to their relief point
+        e.destination = null;
+        e.path = [];
+        e.body.setVelocity(0, 0);
+      }
     });
 
     // Clear build cursor
@@ -294,6 +340,21 @@ export default class OfficeScene extends Phaser.Scene {
   _cleanAllDroppings() {
     this.droppings.getChildren().forEach((d) => d.destroy());
     this.droppings.clear(true, true);
+  }
+
+  /**
+   * Create sprites for all desk and decor objects in the tilemap grid.
+   * Called after loading a saved game.
+   */
+  _restoreObjectSprites() {
+    const desks = this.tilemap.getObjectsOfType('desk');
+    for (const d of desks) {
+      this.desks.add(new Desk(this, d.gridX, d.gridY));
+    }
+    const decors = this.tilemap.getObjectsOfType('decor');
+    for (const d of decors) {
+      this.decor.add(new DecorSprite(this, d.gridX, d.gridY));
+    }
   }
 
   onDailyReport(report) {
@@ -386,6 +447,7 @@ export default class OfficeScene extends Phaser.Scene {
         const ok = this.tilemap.canPlaceObject(gridX, gridY);
         if (!ok) return false;
         this.tilemap.setObject(gridX, gridY, 'desk');
+        this.desks.add(new Desk(this, gridX, gridY));
         return true;
       }
 
@@ -404,6 +466,7 @@ export default class OfficeScene extends Phaser.Scene {
         const ok = this.tilemap.canPlaceObject(gridX, gridY);
         if (!ok) return false;
         this.tilemap.setObject(gridX, gridY, 'decor');
+        this.decor.add(new DecorSprite(this, gridX, gridY));
         return true;
       }
 
@@ -469,6 +532,7 @@ export default class OfficeScene extends Phaser.Scene {
       if (emptyTiles.length > 0) {
         const pos = emptyTiles[0];
         this.tilemap.setObject(pos.x, pos.y, 'desk');
+        this.desks.add(new Desk(this, pos.x, pos.y));
         return this.addEmployee();
       }
       return false;
@@ -605,7 +669,7 @@ export default class OfficeScene extends Phaser.Scene {
 
     // Save periodically
     if (this.t % 300 === 0) {
-      this.business.save(this.economy, this.dayCycle, this.eventManager);
+      this.business.save(this.economy, this.dayCycle, this.eventManager, this.tilemap);
     }
   }
 
@@ -661,14 +725,24 @@ export default class OfficeScene extends Phaser.Scene {
         }
 
         if (relief) {
+          // Re-trigger pathfinding if employee has a need but no destination
+          // (e.g. just resumed after night)
+          if (!e.reliefPoint && !e.destination && !e.path.length) {
+            e.triggerRestroomAttempt(this.findReliefPoint.bind(this));
+          }
+
           if (t % 500 === 0 && !relief.inProgress && relief.shouldAttemptAgain(t)) {
             e.triggerRestroomAttempt(this.findReliefPoint.bind(this));
           }
 
           if (relief.expirationTime && time > relief.expirationTime) {
-            e.triggerRestroomAttempt(this.findReliefPoint.bind(this));
-            e.setRelief(null);
-            setTimeout(() => e.releaseInPlace(relief), randRange(500, 2000));
+            // Skip if already using a facility, or if employee has arrived at
+            // the relief point (will start using it this tick's update)
+            if (!relief.inProgress && !(e.destination === null && e.reliefPoint !== null)) {
+              const expiredRelief = relief;
+              e.setRelief(null);
+              setTimeout(() => e.releaseInPlace(expiredRelief), randRange(500, 2000));
+            }
           }
         }
       }

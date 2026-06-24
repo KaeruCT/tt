@@ -21,7 +21,7 @@ test.describe('Game initialization', () => {
     const funds = await page.evaluate(() => {
       return window.__officeScene.economy.getFunds();
     });
-    expect(funds).toBe(200);
+    expect(funds).toBe(300);
   });
 
   test('renders a canvas element', async ({ page }) => {
@@ -224,7 +224,7 @@ test.describe('Economy', () => {
     await page.evaluate(() => window.__officeScene.dayCycle.skipPhase());
 
     const afterFunds = await page.evaluate(() => window.__officeScene.economy.getFunds());
-    // Salary: $10, maintenance: ~$2-3, rent: ~$2-3
+    // Cost with 1 employee: salary $10 + maintenance ~$2-3 + rent ~$2-3
     expect(afterFunds).toBeLessThan(beforeFunds);
   });
 
@@ -249,8 +249,8 @@ test.describe('Economy', () => {
     const fundsAfter3Emp = await page.evaluate(() => window.__officeScene.economy.getFunds());
 
     // 3 employees = higher salary cost
-    const cost1 = 200 - fundsAfter1Emp;
-    const cost3 = 200 - fundsAfter3Emp;
+    const cost1 = 300 - fundsAfter1Emp;
+    const cost3 = 300 - fundsAfter3Emp;
     expect(cost3).toBeGreaterThan(cost1);
   });
 
@@ -386,6 +386,7 @@ test.describe('Save and load', () => {
         window.__officeScene.economy,
         window.__officeScene.dayCycle,
         window.__officeScene.eventManager,
+        window.__officeScene.tilemap,
       );
     });
 
@@ -393,7 +394,7 @@ test.describe('Save and load', () => {
     await waitForGame(page);
 
     const funds = await page.evaluate(() => window.__officeScene.economy.getFunds());
-    expect(funds).toBe(170);
+    expect(funds).toBe(270);
   });
 });
 

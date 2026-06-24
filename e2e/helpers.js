@@ -112,7 +112,7 @@ export async function advanceTime(page, seconds) {
 export async function reloadAndGetBusiness(page) {
   await page.evaluate(() => {
     const office = window.__officeScene;
-    office.business.save(office.economy, office.dayCycle, office.eventManager);
+    office.business.save(office.economy, office.dayCycle, office.eventManager, office.tilemap);
   });
   await page.reload();
   await waitForGame(page);

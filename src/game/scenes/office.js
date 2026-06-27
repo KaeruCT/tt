@@ -148,14 +148,23 @@ export default class OfficeScene extends Phaser.Scene {
 
     // --- Restore saved state ---
     const stored = localStorage.getItem('business');
-    this.introAcknowledged = Boolean(stored);
+    let loadedSave = false;
+    this.saveLoadFailed = false;
     if (stored) {
-      const data = JSON.parse(stored);
-      const tilemapData = this.business.load(data, this.economy, this.dayCycle, this.eventManager);
-      if (tilemapData) {
-        this.tilemap.load(tilemapData);
+      try {
+        const data = JSON.parse(stored);
+        const tilemapData = this.business.load(data, this.economy, this.dayCycle, this.eventManager);
+        if (tilemapData) {
+          this.tilemap.load(tilemapData);
+        }
+        loadedSave = true;
+      } catch (error) {
+        console.warn('Saved game could not be loaded. Starting a new game.', error);
+        localStorage.removeItem('business');
+        this.saveLoadFailed = true;
       }
     }
+    this.introAcknowledged = loadedSave;
 
     // Sync HUD with loaded/new phase state before gameplay starts.
     if (this.hud?.phaseText) {
@@ -190,7 +199,7 @@ export default class OfficeScene extends Phaser.Scene {
     this._buildableOverlayVisible = false;
 
     // --- Restore employees ---
-    if (stored) {
+    if (loadedSave) {
       const storedEmployees = this.business.getEmployees();
       for (const se of storedEmployees) {
         this.addEmployee(se);
@@ -228,6 +237,9 @@ export default class OfficeScene extends Phaser.Scene {
     // --- Input ---
     this.input.on('pointermove', this.onPointerMove, this);
     this.input.on('pointerdown', this.onPointerDown, this);
+
+    this.ready = true;
+    if (this.hud?.onOfficeReady) this.hud.onOfficeReady();
 
     // Expose for tests
     window.__officeScene = this;

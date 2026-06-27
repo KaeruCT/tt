@@ -38,6 +38,31 @@ test.describe('Game initialization', () => {
     expect(phase).toBe('day');
   });
 
+  test('invalid saved game is cleared and starts fresh', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(() => localStorage.setItem('business', '{not valid json'));
+    await page.reload();
+    await page.waitForFunction(() => window.__officeScene?.ready === true);
+
+    const state = await page.evaluate(() => {
+      const office = window.__officeScene;
+      const hud = window.__game.scene.getScene('HudScene');
+      return {
+        savedValue: localStorage.getItem('business'),
+        saveLoadFailed: office.saveLoadFailed,
+        introAcknowledged: office.introAcknowledged,
+        employeeCount: office.employees.getChildren().length,
+        titleVisible: hud.children.list.some((child) => child.type === 'Text' && child.text === 'START GAME'),
+      };
+    });
+
+    expect(state.savedValue).toBeNull();
+    expect(state.saveLoadFailed).toBe(true);
+    expect(state.introAcknowledged).toBe(false);
+    expect(state.employeeCount).toBe(1);
+    expect(state.titleVisible).toBe(true);
+  });
+
   test('title screen gates game time until START GAME', async ({ page }) => {
     await clearSave(page);
     await waitForGame(page);

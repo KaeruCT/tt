@@ -48,18 +48,14 @@ export default class HudScene extends Phaser.Scene {
     this.activeBuildMode = 'dig';
     this._milestones = new Set();
     this._toasts = [];
-
-    const stored = localStorage.getItem('business');
+    this._officeReadyHandled = false;
+    this._titleVisible = false;
 
     this.buildUi();
 
-    if (this.office?.dayCycle) {
-      this.onPhaseChange(this.office.dayCycle.currentPhase, this.office.dayCycle.currentDay);
-    }
-
-    if (stored) {
-      this._seedAchievedMilestones();
-    } else {
+    if (this.office?.ready) {
+      this.onOfficeReady();
+    } else if (!localStorage.getItem('business')) {
       this._milestones.add('first_hire');
       this._showTitleScreen();
     }
@@ -199,11 +195,33 @@ export default class HudScene extends Phaser.Scene {
     this._toastContainer = this.add.container(0, 0).setScrollFactor(0).setDepth(10001);
   }
 
-  _showTitleScreen() {
+  onOfficeReady() {
+    if (this._officeReadyHandled) return;
+    this._officeReadyHandled = true;
+
+    if (this.office?.dayCycle) {
+      this.onPhaseChange(this.office.dayCycle.currentPhase, this.office.dayCycle.currentDay);
+    }
+
+    if (this.office?.introAcknowledged) {
+      this._seedAchievedMilestones();
+      return;
+    }
+
+    this._milestones.add('first_hire');
+    this._showTitleScreen(
+      this.office?.saveLoadFailed ? 'Your old save could not be loaded.\nPlease start a new office.' : '',
+    );
+  }
+
+  _showTitleScreen(extraMessage = '') {
+    if (this._titleVisible) return;
+    this._titleVisible = true;
+
     const { width, height } = this.sys.game.canvas;
 
     // Pause the game scene so nothing ticks or accepts input behind the title
-    this.office.scene.pause();
+    if (this.office?.scene) this.office.scene.pause();
 
     // Fully opaque background so it reads as a modal screen
     const overlay = this.add
@@ -265,8 +283,9 @@ export default class HudScene extends Phaser.Scene {
       '  sinks, showers, and decor.',
     ];
 
+    const message = extraMessage ? `${lines.join('\n')}\n\n${extraMessage}` : lines.join('\n');
     const instrText = this.add
-      .text(44, 120, lines.join('\n'), {
+      .text(44, 120, message, {
         fill: '#d4c5a9',
         fontSize: '7px',
         fontFamily: '"Press Start 2P", monospace',
@@ -285,6 +304,7 @@ export default class HudScene extends Phaser.Scene {
       subtitle.destroy();
       instrText.destroy();
       startBtn.destroy();
+      this._titleVisible = false;
       this.office.introAcknowledged = true;
       // Resume the game scene
       this.office.scene.resume();
@@ -556,6 +576,8 @@ export default class HudScene extends Phaser.Scene {
   }
 
   _seedAchievedMilestones() {
+    if (!this.office?.employees || !this.office?.economy) return;
+
     const employeeCount = this.office.employees.getChildren().length;
     const funds = this.office.economy.funds;
     for (const milestone of this._getMilestones()) {
@@ -704,7 +726,8 @@ export default class HudScene extends Phaser.Scene {
   // ===================================================================
 
   update() {
-    if (!this.office.economy) return;
+    if (this.office?.ready && !this._officeReadyHandled) this.onOfficeReady();
+    if (!this.office?.economy) return;
 
     const funds = this.office.economy.funds;
     this.fundsBox.setText(`\uD83E\uDE99 $${Math.floor(funds)}`);

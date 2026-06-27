@@ -2,6 +2,7 @@
   "name": "tt-game",
   "version": "1.0.0",
   "description": "Toilet Game",
+  "packageManager": "pnpm@10.34.1",
   "type": "module",
   "scripts": {
     "dev": "vite",

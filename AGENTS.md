@@ -86,9 +86,9 @@ pnpm verify
 ### Day / Night Cycle
 
 - Day lasts `40s`; night lasts `20s`.
-- Day is live operations: employees work, earn money, use facilities, and events can fire.
+- Day is live operations: employees work, earn money, use facilities, and events can fire after the initial event grace period.
 - Night is build/planning mode: employees pause, the build rail appears, and the player can dig/place objects.
-- Salaries, maintenance, rent, and janitor costs are processed when day changes to night.
+- Salaries, maintenance, rent, and janitor costs are processed when day changes to night. The report should stay compact and non-blocking.
 - The HUD timer shows seconds left in the current phase.
 
 ### Title Gate and HUD
@@ -135,7 +135,7 @@ pnpm verify
 - **New build objects**: Add footprint/placement rules to `TilemapManager`, update pathfinding if the object blocks movement, and update save/load behavior.
 - **New relief types**: Add to `RELIEF_TYPES`, update facility costs/maintenance, update build controls, and add tests for behavior and save/load.
 - **New maps/layout changes**: Update dynamic generation and autotile rules. Do not assume static Tiled layers drive the current office.
-- **New crisis events**: Define in `EventManager`; if the event affects movement, use path/tile-safe behavior and recovery guards.
+- **New crisis events**: Define in `EventManager`; if the event affects movement, use path/tile-safe behavior and recovery guards. Preserve a startup grace period so events do not fire immediately after START GAME.
 
 ## Build & Deploy
 

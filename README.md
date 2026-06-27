@@ -83,10 +83,10 @@ New games start on a modal title screen. Nothing in the office ticks until the p
 
 The game alternates between two phases:
 
-- **Day — 40 seconds:** employees work, earn money, use bathrooms, and random crisis events can happen. Hiring is available during the day.
+- **Day — 40 seconds:** employees work, earn money, use bathrooms, and random crisis events can happen after a short startup grace period. Hiring is available during the day.
 - **Night — 20 seconds:** employees pause and the build rail appears. Use night to dig rooms, place desks, add bathroom fixtures, add decor, and skip to the next day when ready.
 
-The top HUD shows funds, current phase, seconds left in the phase, active events, and employee count. A thin progress bar under the HUD also shows phase progress.
+The top HUD shows funds, current phase, seconds left in the phase, active events, and employee count. A thin progress bar under the HUD also shows phase progress. End-of-day profit appears as a small toast instead of a blocking report panel.
 
 ## Building and Layout
 

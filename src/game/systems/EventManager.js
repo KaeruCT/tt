@@ -108,12 +108,13 @@ export const EVENTS = {
 };
 
 const ALL_EVENTS = Object.values(EVENTS);
+const INITIAL_EVENT_COOLDOWN = 10;
 
 export default class EventManager {
   constructor(scene) {
     this.scene = scene;
     this.activeEvents = [];
-    this.eventCooldown = 0;
+    this.eventCooldown = INITIAL_EVENT_COOLDOWN;
     this.cooldownDuration = 30; // seconds between possible events
   }
 

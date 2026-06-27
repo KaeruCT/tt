@@ -351,77 +351,47 @@ export default class HudScene extends Phaser.Scene {
   }
 
   // ===================================================================
-  // Daily Report (styled panel)
+  // Daily Report (compact toast)
   // ===================================================================
 
   onDailyReport(report) {
-    const { width, height } = this.sys.game.canvas;
-    const panelW = 280;
-    const panelH = 80;
-    const px = (width - panelW) / 2;
-    const py = (height - panelH) / 2;
-
-    // Panel background
-    const panelBg = this.add.graphics().setScrollFactor(0).setDepth(10002);
-    panelBg.fillStyle(PANEL_BG, 0.95);
-    panelBg.fillRect(px, py, panelW, panelH);
-    panelBg.lineStyle(2, PANEL_BORDER, 1);
-    panelBg.strokeRect(px, py, panelW, panelH);
-    // Title bar
-    panelBg.fillStyle(PANEL_TITLE_BG, 1);
-    panelBg.fillRect(px, py, panelW, 20);
-    panelBg.lineStyle(1, PANEL_BORDER, 0.8);
-    panelBg.lineBetween(px, py + 20, px + panelW, py + 20);
-
-    const title = this.add
-      .text(px + 8, py + 4, 'DAILY REPORT', {
-        fill: TEXT_GOLD,
-        fontSize: '8px',
-        fontFamily: '"Press Start 2P", monospace',
-      })
-      .setScrollFactor(0)
-      .setDepth(10003);
-    this.add.existing(title);
-
     const profitColor = report.profit >= 0 ? '#7bba6a' : '#d95757';
-    const body = this.add
-      .text(
-        px + 8,
-        py + 26,
-        [
-          `Profit: ${report.profit >= 0 ? '+' : ''}$${report.profit}`,
-          `Revenue: $${report.revenue}`,
-          `Salaries: -$${report.salaryCost}`,
-          `Upkeep:   -$${report.maintenanceCost + report.rentCost}`,
-        ].join('\n'),
-        {
-          fill: '#d4c5a9',
-          fontSize: '7px',
-          fontFamily: '"Press Start 2P", monospace',
-          lineSpacing: 4,
-        },
-      )
-      .setScrollFactor(0)
-      .setDepth(10003);
-    this.add.existing(body);
+    const profit = `${report.profit >= 0 ? '+' : ''}$${report.profit}`;
+    const upkeep = report.maintenanceCost + report.rentCost + report.janitorCost;
+    const message = `Day: ${profit}  Rev $${report.revenue}  Cost $${report.salaryCost + upkeep}`;
+    const toastW = 228;
+    const toastH = 18;
+    const toastX = 99;
+    const toastY = 30;
 
-    // Profit highlight
-    const profitText = this.add
-      .text(px + 8, py + 26, `Profit: ${report.profit >= 0 ? '+' : ''}$${report.profit}`, {
+    const bg = this.add.graphics().setScrollFactor(0).setDepth(10002).setAlpha(0);
+    bg.fillStyle(PANEL_BG, 0.92);
+    bg.fillRect(toastX, toastY, toastW, toastH);
+    bg.lineStyle(1, PANEL_BORDER, 0.9);
+    bg.strokeRect(toastX, toastY, toastW, toastH);
+
+    const text = this.add
+      .text(toastX + 7, toastY + 5, message, {
+        ...small,
         fill: profitColor,
-        fontSize: '7px',
-        fontFamily: '"Press Start 2P", monospace',
+        padding: 0,
+        fontSize: '6px',
       })
       .setScrollFactor(0)
-      .setDepth(10004);
-    this.add.existing(profitText);
+      .setDepth(10003)
+      .setAlpha(0);
+    this.add.existing(text);
 
-    // Dismiss after delay
-    this.time.delayedCall(5000, () => {
-      panelBg.destroy();
-      title.destroy();
-      body.destroy();
-      profitText.destroy();
+    this.tweens.add({
+      targets: [bg, text],
+      alpha: 1,
+      duration: 180,
+      hold: 1800,
+      yoyo: true,
+      onComplete: () => {
+        bg.destroy();
+        text.destroy();
+      },
     });
   }
 

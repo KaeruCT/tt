@@ -9,7 +9,7 @@ The game is now a dungeon-office management loop built around employees, desks, 
 ### Implemented Core Loop
 
 - New saves start behind a modal **START GAME** title screen. Gameplay does not tick until the player starts.
-- **Day shift lasts 40 seconds.** Employees work, earn money, use bathrooms, and crisis events can fire.
+- **Day shift lasts 40 seconds.** Employees work, earn money, use bathrooms, and crisis events can fire after a short startup grace period.
 - **Night shift lasts 20 seconds.** Employees pause while the player digs and builds.
 - The office starts as a dynamically generated dungeon room, not a fixed Tiled map.
 - The starter layout is an office plus enclosed bathroom separated by a wall and walkable door tile.
@@ -19,7 +19,7 @@ The game is now a dungeon-office management loop built around employees, desks, 
 - Hiring creates/uses only valid desk footprints; it should not spill employees into bathrooms, walls, or furniture.
 - Employees have names, ages, hobbies, visual variation, and traits.
 - Employees need relief, can have accidents, become sad, and may quit.
-- Economy includes income, salaries, rent, maintenance, janitor cost, and daily reports.
+- Economy includes income, salaries, rent, maintenance, janitor cost, and compact daily report toasts.
 - Crisis events include burrito Tuesday, rats, water breaks, inspector visits, overtime, power outage, dungeon monster, and coffee spill.
 - Monster/scare movement is tile/path based so employees do not get pushed out of bounds.
 - Employee details use a compact sidebar with FIRE as the only action.

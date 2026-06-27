@@ -450,6 +450,23 @@ test.describe('Crisis events', () => {
     expect(eventCount).toBe(8);
   });
 
+  test('random events cannot fire during the initial grace period', async ({ page }) => {
+    await clearSave(page);
+    await waitForGame(page);
+
+    const state = await page.evaluate(() => {
+      const eventManager = window.__officeScene.eventManager;
+      eventManager.update(9000, 100);
+      return {
+        activeEvents: eventManager.activeEvents.length,
+        cooldown: eventManager.eventCooldown,
+      };
+    });
+
+    expect(state.activeEvents).toBe(0);
+    expect(state.cooldown).toBeGreaterThan(0);
+  });
+
   test('getActiveEffects returns empty object when no events', async ({ page }) => {
     await clearSave(page);
     await waitForGame(page);

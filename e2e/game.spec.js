@@ -37,6 +37,42 @@ test.describe('Game initialization', () => {
     const phase = await page.evaluate(() => window.__officeScene.dayCycle.currentPhase);
     expect(phase).toBe('day');
   });
+
+  test('title screen gates game time until START GAME', async ({ page }) => {
+    await clearSave(page);
+    await waitForGame(page);
+    await page.waitForTimeout(1000);
+
+    const beforeStart = await page.evaluate(() => {
+      const office = window.__officeScene;
+      return {
+        introAcknowledged: office.introAcknowledged,
+        tick: office.t,
+        elapsed: office.dayCycle.phaseElapsed,
+      };
+    });
+    expect(beforeStart).toEqual({ introAcknowledged: false, tick: 0, elapsed: 0 });
+
+    const afterStart = await page.evaluate(async () => {
+      const hud = window.__game.scene.getScene('HudScene');
+      const office = window.__officeScene;
+      const startButton = hud.children.list.find((child) => child.type === 'Text' && child.text === 'START GAME');
+      startButton.emit('pointerup');
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      return {
+        introAcknowledged: office.introAcknowledged,
+        tick: office.t,
+        elapsed: office.dayCycle.phaseElapsed,
+        timerText: hud.phaseTimer.text,
+      };
+    });
+
+    expect(afterStart.introAcknowledged).toBe(true);
+    expect(afterStart.tick).toBeGreaterThan(0);
+    expect(afterStart.elapsed).toBeGreaterThan(0);
+    expect(afterStart.timerText).toMatch(/\d+s left/);
+    expect(afterStart.timerText).not.toBe('40s left');
+  });
 });
 
 test.describe('Dynamic tilemap', () => {
@@ -48,8 +84,8 @@ test.describe('Dynamic tilemap', () => {
       const tm = window.__officeScene.tilemap;
       return tm.getTilesOfType('stone_floor').length;
     });
-    // 5x5 starting room = 25 tiles
-    expect(floorTiles).toBe(25);
+    // Starter office + bathroom: 11x5 footprint with 4 partition wall tiles
+    expect(floorTiles).toBe(51);
   });
 
   test('starting room is surrounded by rock', async ({ page }) => {
@@ -60,8 +96,8 @@ test.describe('Dynamic tilemap', () => {
       const tm = window.__officeScene.tilemap;
       return tm.getTilesOfType('rock').length;
     });
-    // 30*20 - 25 = 575 rock tiles
-    expect(rockTiles).toBe(575);
+    // 30*20 - 51 floor tiles - 4 partition wall tiles = 545 rock tiles
+    expect(rockTiles).toBe(545);
   });
 
   test('can dig rock to create floor', async ({ page }) => {
@@ -81,7 +117,7 @@ test.describe('Dynamic tilemap', () => {
       // Find a rock tile adjacent to floor
       const startCX = Math.floor(tm.cols / 2);
       const startCY = Math.floor(tm.rows / 2);
-      const rockX = startCX + 3; // just outside the 5x5 room
+      const rockX = startCX + 5; // just outside the starter office/bathroom
       const rockY = startCY;
       if (tm.getTileType(rockX, rockY) === 'rock') {
         return tm.dig(rockX, rockY);
@@ -175,6 +211,35 @@ test.describe('Day/Night cycle', () => {
 });
 
 test.describe('Employee management', () => {
+  test('desks reserve the full workstation footprint', async ({ page }) => {
+    await clearSave(page);
+    await waitForGame(page);
+
+    const footprint = await page.evaluate(() => {
+      const tm = window.__officeScene.tilemap;
+      return tm.getObjectsOfType('desk').map((desk) => ({
+        desk,
+        parts: tm.getDeskFootprint(desk.gridX, desk.gridY).map((part) => ({
+          x: part.x,
+          y: part.y,
+          anchor: part.anchor === true,
+          object: tm.getObject(part.x, part.y),
+          pathBlocked: tm.getPathfindingGrid()[part.y][part.x] === 1,
+        })),
+      }));
+    });
+
+    expect(footprint.length).toBeGreaterThan(0);
+    for (const entry of footprint) {
+      const anchor = entry.parts.find((part) => part.anchor);
+      const bodyParts = entry.parts.filter((part) => !part.anchor);
+      expect(anchor.object).toBe('desk');
+      expect(anchor.pathBlocked).toBe(false);
+      expect(bodyParts.every((part) => part.object === 'desk_part')).toBe(true);
+      expect(bodyParts.every((part) => part.pathBlocked)).toBe(true);
+    }
+  });
+
   test('employees have traits', async ({ page }) => {
     await clearSave(page);
     await waitForGame(page);
@@ -258,7 +323,7 @@ test.describe('Economy', () => {
     await clearSave(page);
     await waitForGame(page);
 
-    // Get rent cost with 25 starting tiles
+    // Get rent cost with the starter office + bathroom tiles
     const rentBase = await page.evaluate(() => {
       const tm = window.__officeScene.tilemap;
       const dug = tm.getTilesOfType('stone_floor').length + tm.getTilesOfType('carpet_floor').length;
@@ -272,7 +337,7 @@ test.describe('Economy', () => {
       const startCX = Math.floor(tm.cols / 2);
       const startCY = Math.floor(tm.rows / 2);
       for (let i = 0; i < 10; i++) {
-        tm.dig(startCX + 3 + i, startCY);
+        tm.dig(startCX + 5 + i, startCY);
       }
       const dug = tm.getTilesOfType('stone_floor').length + tm.getTilesOfType('carpet_floor').length;
       return scene.economy.getRentCost(dug);

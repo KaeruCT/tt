@@ -197,6 +197,7 @@ export default class TilemapManager {
     this.objectLayer = this.map.createBlankDynamicLayer('objects', this.tileset, 0, 0, this.cols, this.rows);
 
     this.wallLayer.setDepth(5);
+    this.objectLayer.setDepth(6);
 
     // Initialize grid: everything is rock
     for (let y = 0; y < this.rows; y++) {
@@ -206,21 +207,27 @@ export default class TilemapManager {
       }
     }
 
-    // Carve starting room (5×5 in center)
+    // Carve starter office + enclosed bathroom.
+    // Office: left side. Bathroom: right side, separated by wall with a walkable door tile.
     const startCX = Math.floor(this.cols / 2);
     const startCY = Math.floor(this.rows / 2);
-    const roomW = 5;
-    const roomH = 5;
-    for (let y = startCY - Math.floor(roomH / 2); y < startCY + Math.ceil(roomH / 2); y++) {
-      for (let x = startCX - Math.floor(roomW / 2); x < startCX + Math.ceil(roomW / 2); x++) {
+    for (let y = startCY - 2; y <= startCY + 2; y++) {
+      for (let x = startCX - 6; x <= startCX + 4; x++) {
         if (x >= 0 && x < this.cols && y >= 0 && y < this.rows) {
           this.grid[y][x].type = TILE_TYPES.STONE_FLOOR;
         }
       }
     }
 
+    // Bathroom partition wall with a center door opening.
+    const partitionX = startCX + 1;
+    for (let y = startCY - 2; y <= startCY + 2; y++) {
+      if (y !== startCY) this.grid[y][partitionX].type = TILE_TYPES.WALL;
+    }
+
     // Render all tiles with autotile logic
     this._refreshAllTiles();
+    this.putOverlayTile(partitionX, startCY, 98); // walkable door graphic
     this._rebuildPathfinding();
   }
 
@@ -255,6 +262,35 @@ export default class TilemapManager {
   setObject(x, y, objectType) {
     if (x < 0 || x >= this.cols || y < 0 || y >= this.rows) return;
     this.grid[y][x].object = objectType;
+  }
+
+  setDesk(x, y) {
+    if (!this.canPlaceDesk(x, y)) return false;
+    for (const part of this.getDeskFootprint(x, y)) {
+      this.setObject(part.x, part.y, part.anchor ? 'desk' : 'desk_part');
+    }
+    this._rebuildPathfinding();
+    return true;
+  }
+
+  getDeskFootprint(x, y) {
+    return [
+      { x, y: y - 2 },
+      { x: x + 1, y: y - 2 },
+      { x, y: y - 1 },
+      { x: x + 1, y: y - 1 },
+      { x, y, anchor: true },
+    ];
+  }
+
+  canPlaceDesk(x, y) {
+    return this.getDeskFootprint(x, y).every((part) => this.canPlaceObject(part.x, part.y));
+  }
+
+  /** Place a non-colliding decorative tile on the object layer. */
+  putOverlayTile(x, y, tileIndex) {
+    if (x < 0 || x >= this.cols || y < 0 || y >= this.rows) return;
+    this.objectLayer.putTileAt(tileIndex, x, y);
   }
 
   /**
@@ -315,7 +351,39 @@ export default class TilemapManager {
   }
 
   getEmptyDeskSlots() {
-    return this.getEmptyFloorTiles();
+    const slots = [];
+    const reliefPoints = this.getObjectsOfType('pee').concat(
+      this.getObjectsOfType('poo'),
+      this.getObjectsOfType('wash_hands'),
+      this.getObjectsOfType('shower'),
+    );
+
+    for (let y = 0; y < this.rows; y++) {
+      for (let x = 0; x < this.cols; x++) {
+        if (!this.canPlaceDesk(x, y)) continue;
+        const nearBathroomFixture = reliefPoints.some((p) => Math.abs(p.gridX - x) + Math.abs(p.gridY - y) <= 3);
+        if (!nearBathroomFixture) slots.push({ x, y });
+      }
+    }
+    return slots;
+  }
+
+  getNearestWalkableTile(startX, startY) {
+    const sx = Math.max(0, Math.min(this.cols - 1, startX));
+    const sy = Math.max(0, Math.min(this.rows - 1, startY));
+    if (this.isWalkable(sx, sy)) return { x: sx, y: sy };
+
+    const maxRadius = Math.max(this.cols, this.rows);
+    for (let radius = 1; radius <= maxRadius; radius++) {
+      for (let y = sy - radius; y <= sy + radius; y++) {
+        for (let x = sx - radius; x <= sx + radius; x++) {
+          if (x < 0 || x >= this.cols || y < 0 || y >= this.rows) continue;
+          if (Math.abs(x - sx) !== radius && Math.abs(y - sy) !== radius) continue;
+          if (this.isWalkable(x, y)) return { x, y };
+        }
+      }
+    }
+    return null;
   }
 
   getObjectsOfType(objectType) {
@@ -349,7 +417,9 @@ export default class TilemapManager {
     for (let y = 0; y < this.rows; y++) {
       grid[y] = [];
       for (let x = 0; x < this.cols; x++) {
-        grid[y][x] = this.isWalkable(x, y) ? 0 : 1;
+        const object = this.getObject(x, y);
+        const blockedObject = object === 'desk_part' || object === 'decor';
+        grid[y][x] = this.isWalkable(x, y) && !blockedObject ? 0 : 1;
       }
     }
     return grid;
@@ -398,6 +468,17 @@ export default class TilemapManager {
     }
     // Refresh all tile visuals with autotile logic
     this._refreshAllTiles();
+    this.objectLayer.fill(-1);
+
+    const doorX = Math.floor(this.cols / 2) + 1;
+    const doorY = Math.floor(this.rows / 2);
+    if (
+      this.isWalkable(doorX, doorY) &&
+      this.getTileType(doorX, doorY - 1) === TILE_TYPES.WALL &&
+      this.getTileType(doorX, doorY + 1) === TILE_TYPES.WALL
+    ) {
+      this.putOverlayTile(doorX, doorY, 98);
+    }
     this._rebuildPathfinding();
   }
 }

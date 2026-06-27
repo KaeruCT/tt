@@ -148,12 +148,18 @@ export default class OfficeScene extends Phaser.Scene {
 
     // --- Restore saved state ---
     const stored = localStorage.getItem('business');
+    this.introAcknowledged = Boolean(stored);
     if (stored) {
       const data = JSON.parse(stored);
       const tilemapData = this.business.load(data, this.economy, this.dayCycle, this.eventManager);
       if (tilemapData) {
         this.tilemap.load(tilemapData);
       }
+    }
+
+    // Sync HUD with loaded/new phase state before gameplay starts.
+    if (this.hud?.phaseText) {
+      this.hud.onPhaseChange(this.dayCycle.currentPhase, this.dayCycle.currentDay);
     }
 
     // --- Camera ---
@@ -215,13 +221,8 @@ export default class OfficeScene extends Phaser.Scene {
 
       this._restoreObjectSprites();
     } else {
+      this._createStarterObjects();
       this.addEmployee();
-      const startTiles = this.tilemap.getEmptyFloorTiles();
-      if (startTiles.length >= 2) {
-        const mid = Math.floor(startTiles.length / 2);
-        this.placeObject(startTiles[mid].x, startTiles[mid].y, 'poo');
-        this.placeObject(startTiles[mid - 1].x, startTiles[mid - 1].y, 'pee');
-      }
     }
 
     // --- Input ---
@@ -230,6 +231,27 @@ export default class OfficeScene extends Phaser.Scene {
 
     // Expose for tests
     window.__officeScene = this;
+  }
+
+  _createStarterObjects() {
+    const cx = Math.floor(this.tilemap.cols / 2);
+    const cy = Math.floor(this.tilemap.rows / 2);
+
+    const starterDesks = [
+      { x: cx - 4, y: cy + 1 },
+      { x: cx - 1, y: cy + 1 },
+    ];
+
+    for (const desk of starterDesks) {
+      if (this.tilemap.setDesk(desk.x, desk.y)) this.desks.add(new Desk(this, desk.x, desk.y));
+    }
+
+    // Bathroom is the enclosed right-side room behind the partition wall/door.
+    // Urinals line the right wall; the toilet starts in the bottom-right corner.
+    this.placeObject(cx + 3, cy - 1, 'pee');
+    this.placeObject(cx + 3, cy, 'pee');
+    this.placeObject(cx + 3, cy + 1, 'poo');
+    this.placeObject(cx + 2, cy + 1, 'wash_hands');
   }
 
   // ===================================================================
@@ -241,7 +263,10 @@ export default class OfficeScene extends Phaser.Scene {
 
     const cx = Math.floor(this.tilemap.cols / 2) * TILE_SIZE;
     const cy = Math.floor(this.tilemap.rows / 2) * TILE_SIZE;
-    camera.centerOn(cx, cy);
+    camera.setZoom(1.75);
+    camera.roundPixels = true;
+    // Slight upward bias keeps the room clear of the HUD without clipping the floor.
+    camera.centerOn(cx, cy - TILE_SIZE / 2);
 
     this.plugins
       .get('rexpinchplugin')
@@ -254,7 +279,7 @@ export default class OfficeScene extends Phaser.Scene {
       .on(
         'pinch',
         (dragScale) => {
-          camera.zoom *= dragScale.scaleFactor;
+          camera.zoom = Phaser.Math.Clamp(camera.zoom * dragScale.scaleFactor, 1, 3);
         },
         this,
       );
@@ -578,6 +603,8 @@ export default class OfficeScene extends Phaser.Scene {
       return this.tilemap.getTileType(gridX, gridY) === TILE_TYPES.STONE_FLOOR && !this.tilemap.getObject(gridX, gridY);
     }
 
+    if (mode.id === 'desk') return this.tilemap.canPlaceDesk(gridX, gridY);
+
     return this.tilemap.canPlaceObject(gridX, gridY);
   }
 
@@ -632,9 +659,7 @@ export default class OfficeScene extends Phaser.Scene {
         return this.tilemap.setCarpet(gridX, gridY);
 
       case 'desk': {
-        const ok = this.tilemap.canPlaceObject(gridX, gridY);
-        if (!ok) return false;
-        this.tilemap.setObject(gridX, gridY, 'desk');
+        if (!this.tilemap.setDesk(gridX, gridY)) return false;
         this.desks.add(new Desk(this, gridX, gridY));
         return true;
       }
@@ -714,12 +739,13 @@ export default class OfficeScene extends Phaser.Scene {
     });
 
     if (!storedMeta && emptyDesks.length === 0) {
-      const emptyTiles = this.tilemap.getEmptyFloorTiles();
-      if (emptyTiles.length > 0) {
-        const pos = emptyTiles[0];
-        this.tilemap.setObject(pos.x, pos.y, 'desk');
-        this.desks.add(new Desk(this, pos.x, pos.y));
-        return this.addEmployee();
+      const deskSlots = this.tilemap.getEmptyDeskSlots();
+      if (deskSlots.length > 0) {
+        const pos = deskSlots[0];
+        if (this.tilemap.setDesk(pos.x, pos.y)) {
+          this.desks.add(new Desk(this, pos.x, pos.y));
+          return this.addEmployee();
+        }
       }
       return false;
     }
@@ -893,10 +919,12 @@ export default class OfficeScene extends Phaser.Scene {
   // ===================================================================
 
   update(time, _delta) {
+    if (!this.introAcknowledged) return;
+
     this.t++;
     const delta = this.game.loop.delta;
 
-    // Phase progress bar
+    this.dayCycle.update(delta);
 
     if (this.dayCycle.isPlayMode()) {
       this._updateDayPhase(time, delta);
@@ -942,15 +970,9 @@ export default class OfficeScene extends Phaser.Scene {
         e.speed = e.initialSpeed;
       }
 
-      // Scare employees
+      // Scare employees without bypassing tile/pathfinding bounds.
       if (activeEvents.scareEmployees && e.working && t % 200 === 0) {
-        e.working = false;
-        e.body.setVelocity((Math.random() - 0.5) * 200, (Math.random() - 0.5) * 200);
-        // Panic wiggle
-        e.triggerPanic = true;
-        setTimeout(() => {
-          if (e.active) e.goToDesk();
-        }, 2000);
+        this._sendEmployeeOnPanicHop(e);
       }
 
       // Walking dust particles
@@ -1009,6 +1031,8 @@ export default class OfficeScene extends Phaser.Scene {
         }
       }
 
+      if (!this._recoverEmployeeIfOffFloor(e)) return;
+
       e.update(time, delta);
 
       if (e.working && !workStopped) {
@@ -1032,6 +1056,65 @@ export default class OfficeScene extends Phaser.Scene {
     // Update events
     this.eventManager.update(delta, this.employees.getChildren().length);
     this.hud.updateEvents(this.eventManager.getActiveEventNames());
+  }
+
+  _sendEmployeeOnPanicHop(employee) {
+    const from = this.tilemap.pixelToGrid(employee.x, employee.y);
+    const choices = [];
+
+    for (let dy = -2; dy <= 2; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        const x = from.x + dx;
+        const y = from.y + dy;
+        if (!this.tilemap.isWalkable(x, y)) continue;
+        if (this.tilemap.getObject(x, y) && this.tilemap.getObject(x, y) !== 'desk') continue;
+        choices.push({ x, y });
+      }
+    }
+
+    if (choices.length === 0) {
+      employee.goToDesk();
+      return;
+    }
+
+    const panicTile = randValue(choices);
+    employee.working = false;
+    employee.triggerPanic = true;
+    employee.body.setVelocity(0, 0);
+    employee
+      .setDestination({
+        x: panicTile.x * TILE_SIZE + TILE_SIZE / 2,
+        y: panicTile.y * TILE_SIZE + TILE_SIZE / 2,
+        gridX: panicTile.x,
+        gridY: panicTile.y,
+        meta: { panic: true },
+      })
+      .then(() => {
+        if (employee.active) employee.goToDesk();
+      });
+  }
+
+  _recoverEmployeeIfOffFloor(employee) {
+    const current = this.tilemap.pixelToGrid(employee.x, employee.y);
+    if (this.tilemap.isWalkable(current.x, current.y)) return true;
+
+    const desk = employee.meta.desk;
+    const target =
+      desk && this.tilemap.isWalkable(desk.gridX, desk.gridY)
+        ? { x: desk.gridX, y: desk.gridY }
+        : this.tilemap.getNearestWalkableTile(current.x, current.y);
+
+    if (!target) return false;
+
+    const pixelPos = this.tilemap.gridToPixel(target.x, target.y);
+    employee.setPosition(pixelPos.x, pixelPos.y);
+    employee.body.setVelocity(0, 0);
+    employee.destination = null;
+    employee.path = [];
+    employee.working = false;
+    employee.goToDesk();
+    return false;
   }
 
   // ===================================================================

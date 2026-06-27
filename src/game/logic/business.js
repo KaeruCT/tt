@@ -1,5 +1,5 @@
 import remove from 'lodash/remove';
-import { RELIEF_TYPES } from './relief';
+import { EVENTS } from '../systems/EventManager';
 
 /**
  * Business manager handles employee tracking, save/load, and coordinates
@@ -87,7 +87,7 @@ export class Business {
 
     if (economy && data.economy) economy.load(data.economy);
     if (dayCycle && data.dayCycle) dayCycle.load(data.dayCycle);
-    if (eventManager && data.events) eventManager.load(data.events, Object.values(RELIEF_TYPES));
+    if (eventManager && data.events) eventManager.load(data.events, Object.values(EVENTS));
 
     return data.tilemap || null;
   }

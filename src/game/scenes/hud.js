@@ -1,6 +1,5 @@
 import Phaser from 'phaser';
 import { PHASE } from '../systems/DayCycle';
-import { TILE_SIZE } from '../systems/TilemapManager';
 import Button from '../ui/Button';
 import {
   BTN_BG,
@@ -9,43 +8,33 @@ import {
   DAY_PROGRESS,
   HUD_BG,
   HUD_BG_ALPHA,
-  light,
   NIGHT_PROGRESS,
   PANEL_BG,
   PANEL_BORDER,
   PANEL_TITLE_BG,
   PROGRESS_BG,
+  small,
   TEXT_GOLD,
 } from '../ui/common';
 import Text from '../ui/Text';
 
 // Landscape layout: 426×240 canvas
-// Build buttons: 2 rows × 4 columns, evenly spaced
-const BTN_COLS = [6, 112, 218, 324];
-const BTN_ROWS = [28, 54];
+// Night build controls live in a left rail so they don't cover the room.
+const BUILD_RAIL_X = 6;
+const BUILD_RAIL_Y = 34;
+const BUILD_RAIL_W = 86;
+const BUILD_ROW_STEP = 20;
 
 const BUILD_MODE_BUTTONS = [
-  { id: 'dig', label: 'Dig', col: 0, row: 0 },
-  { id: 'desk', label: 'Desk', col: 1, row: 0 },
-  { id: 'carpet', label: 'Carpet', col: 2, row: 0 },
-  { id: 'decor', label: 'Decor', col: 3, row: 0 },
-  { id: 'pee', label: 'Pee', col: 0, row: 1 },
-  { id: 'poo', label: 'Poo', col: 1, row: 1 },
-  { id: 'sink', label: 'Sink', col: 2, row: 1 },
-  { id: 'shower', label: 'Shower', col: 3, row: 1 },
+  { id: 'dig', label: 'Dig', row: 0 },
+  { id: 'desk', label: 'Desk', row: 1 },
+  { id: 'carpet', label: 'Carpet', row: 2 },
+  { id: 'decor', label: 'Decor', row: 3 },
+  { id: 'pee', label: 'Pee', row: 4 },
+  { id: 'poo', label: 'Poo', row: 5 },
+  { id: 'sink', label: 'Sink', row: 6 },
+  { id: 'shower', label: 'Shower', row: 7 },
 ];
-
-// Event notification icons
-const _EVENT_ICONS = {
-  burrito_tuesday: '\uD83C\uDF2F',
-  dungeon_rats: '\uD83D\uDC00',
-  water_main_break: '\uD83D\uDCA7',
-  inspector_visit: '\uD83D\uDD0D',
-  overtime_crunch: '\u23F0',
-  power_outage: '\uD83D\uDD0C',
-  dungeon_monster: '\uD83D\uDC7E',
-  coffee_spill: '\u2615',
-};
 
 export default class HudScene extends Phaser.Scene {
   constructor() {
@@ -64,7 +53,14 @@ export default class HudScene extends Phaser.Scene {
 
     this.buildUi();
 
-    if (!stored) {
+    if (this.office?.dayCycle) {
+      this.onPhaseChange(this.office.dayCycle.currentPhase, this.office.dayCycle.currentDay);
+    }
+
+    if (stored) {
+      this._seedAchievedMilestones();
+    } else {
+      this._milestones.add('first_hire');
       this._showTitleScreen();
     }
   }
@@ -84,23 +80,23 @@ export default class HudScene extends Phaser.Scene {
     this.bg.lineBetween(0, 24, 426, 24);
 
     // Funds (top-left) with coin icon
-    this.fundsBox = new Text(this, 6, 4, '\uD83E\uDE99 $200');
+    this.fundsBox = new Text(this, 6, 6, '\uD83E\uDE99 $200', small);
     this.add.existing(this.fundsBox);
 
     // Day/Night phase indicator
-    this.phaseText = new Text(this, 110, 4, '\u2600 Day');
+    this.phaseText = new Text(this, 112, 6, '\u2600 Day', small);
     this.add.existing(this.phaseText);
 
     // Phase timer
-    this.phaseTimer = new Text(this, 200, 4, '40s');
+    this.phaseTimer = new Text(this, 170, 6, '40s left', small);
     this.add.existing(this.phaseTimer);
 
     // Event indicator
-    this.eventText = new Text(this, 260, 4, '');
+    this.eventText = new Text(this, 266, 6, '', small);
     this.add.existing(this.eventText);
 
     // Employee count
-    this.empCountText = new Text(this, 380, 4, '');
+    this.empCountText = new Text(this, 386, 6, '', small);
     this.add.existing(this.empCountText);
 
     // Progress bar (below header text) - now with glow effect
@@ -109,19 +105,19 @@ export default class HudScene extends Phaser.Scene {
     // --- Build mode panel (night only) ---
     this.buildBg = this.add.graphics().setScrollFactor(0).setDepth(998);
     this.buildBg.fillStyle(BUILD_PANEL_BG, BUILD_PANEL_ALPHA);
-    this.buildBg.fillRect(0, 24, 426, 62);
+    this.buildBg.fillRect(BUILD_RAIL_X - 4, BUILD_RAIL_Y - 6, BUILD_RAIL_W + 8, 176);
     this.buildBg.setVisible(false);
 
     // Build panel borders
     this.buildPanelBorder = this.add.graphics().setScrollFactor(0).setDepth(998);
     this.buildPanelBorder.lineStyle(1, PANEL_BORDER, 0.5);
-    this.buildPanelBorder.strokeRect(0, 24, 426, 62);
+    this.buildPanelBorder.strokeRect(BUILD_RAIL_X - 4, BUILD_RAIL_Y - 6, BUILD_RAIL_W + 8, 176);
     this.buildPanelBorder.setVisible(false);
 
     this.buildButtons = [];
     BUILD_MODE_BUTTONS.forEach((def) => {
-      const x = BTN_COLS[def.col];
-      const y = BTN_ROWS[def.row];
+      const x = BUILD_RAIL_X;
+      const y = BUILD_RAIL_Y + def.row * BUILD_ROW_STEP;
       const btn = new Button(this, x, y, def.label, () => {
         this.office.setBuildMode(def.id);
         this._highlightBuildButton(def.id);
@@ -132,7 +128,13 @@ export default class HudScene extends Phaser.Scene {
     });
 
     // Build cost display (below buttons)
-    this.buildCostText = new Text(this, 6, 80, '');
+    this.buildCostText = new Text(
+      this,
+      BUILD_RAIL_X,
+      BUILD_RAIL_Y + BUILD_MODE_BUTTONS.length * BUILD_ROW_STEP + 2,
+      '',
+      small,
+    );
     this.buildCostText.setVisible(false);
     this.add.existing(this.buildCostText);
 
@@ -184,7 +186,7 @@ export default class HudScene extends Phaser.Scene {
 
     this.zoomOutBtn = new Button(this, 398, 120, '-', () => {
       const cam = this.office.cameras.main;
-      cam.zoom = Math.max(cam.zoom / 1.3, 0.5);
+      cam.zoom = Math.max(cam.zoom / 1.3, 1);
     });
     this.add.existing(this.zoomOutBtn);
 
@@ -227,7 +229,7 @@ export default class HudScene extends Phaser.Scene {
 
     // Title
     const title = this.add
-      .text(width / 2, 40, 'DUNGEON\nOFFICE', {
+      .text(width / 2, 32, 'DUNGEON\nOFFICE', {
         fill: '#c9a84c',
         fontSize: '16px',
         fontFamily: '"Press Start 2P", monospace',
@@ -241,7 +243,7 @@ export default class HudScene extends Phaser.Scene {
 
     // Subtitle
     const subtitle = this.add
-      .text(width / 2, 90, 'Manage your dungeon.\nKeep employees happy.', {
+      .text(width / 2, 82, 'Manage your dungeon.\nKeep employees happy.', {
         fill: '#d4c5a9',
         fontSize: '8px',
         fontFamily: '"Press Start 2P", monospace',
@@ -255,20 +257,16 @@ export default class HudScene extends Phaser.Scene {
 
     // Instructions
     const lines = [
-      '\u2600 DAY: Work & earn',
-      '  Click employees',
+      '\u2600 DAY: earn money',
+      '  Click employees for details.',
       '',
-      '\uD83D\uDEBD Bathroom breaks:',
-      '  Build toilets or...',
-      '  mess on the floor.',
-      '',
-      '\uD83C\uDF19 NIGHT: Build!',
-      '  Dig, place desks,',
-      '  toilets, decor & more.',
+      '\uD83C\uDF19 NIGHT: build rooms',
+      '  Dig tiles, add desks, toilets,',
+      '  sinks, showers, and decor.',
     ];
 
     const instrText = this.add
-      .text(40, 118, lines.join('\n'), {
+      .text(44, 120, lines.join('\n'), {
         fill: '#d4c5a9',
         fontSize: '7px',
         fontFamily: '"Press Start 2P", monospace',
@@ -279,7 +277,7 @@ export default class HudScene extends Phaser.Scene {
     this.add.existing(instrText);
 
     // Start button — elevate the border depth so it renders above the overlay
-    const startBtn = new Button(this, width / 2 - 50, height - 50, 'START GAME', () => {
+    const startBtn = new Button(this, width / 2 - 37, height - 48, 'START GAME', () => {
       overlay.destroy();
       blocker.destroy();
       border.destroy();
@@ -287,6 +285,7 @@ export default class HudScene extends Phaser.Scene {
       subtitle.destroy();
       instrText.destroy();
       startBtn.destroy();
+      this.office.introAcknowledged = true;
       // Resume the game scene
       this.office.scene.resume();
     }).setDepth(10002);
@@ -311,12 +310,12 @@ export default class HudScene extends Phaser.Scene {
   // Phase Change
   // ===================================================================
 
-  onPhaseChange(phase, day) {
+  onPhaseChange(phase, _day) {
     if (phase === PHASE.NIGHT) {
-      this.phaseText.setText(`\uD83C\uDF19 Night D${day}`);
+      this.phaseText.setText('\uD83C\uDF19 Night');
       this._showBuildMode(true);
     } else {
-      this.phaseText.setText(`\u2600 Day ${day}`);
+      this.phaseText.setText('\u2600 Day');
       this._showBuildMode(false);
     }
   }
@@ -411,11 +410,14 @@ export default class HudScene extends Phaser.Scene {
   // ===================================================================
 
   updateEvents(events) {
-    if (events.length > 0) {
-      this.eventText.setText(events.map((e) => `${e.icon}${e.remaining}s`).join(' '));
-    } else {
+    if (events.length === 0) {
       this.eventText.setText('');
+      return;
     }
+
+    const visibleEvents = events.slice(0, 2).map((e) => `${e.icon}${e.remaining}s`);
+    if (events.length > 2) visibleEvents.push(`+${events.length - 2}`);
+    this.eventText.setText(visibleEvents.join(' '));
   }
 
   /**
@@ -423,8 +425,8 @@ export default class HudScene extends Phaser.Scene {
    */
   showEventBanner(eventName, icon, _duration) {
     const { width } = this.sys.game.canvas;
-    const bannerH = 20;
-    const restY = 28; // Final resting y position for both box and text
+    const bannerH = 22;
+    const restY = 28;
 
     // Clear previous
     if (this.eventBannerText) this.eventBannerText.destroy();
@@ -434,13 +436,12 @@ export default class HudScene extends Phaser.Scene {
     this.eventBanner.clear();
     this.eventBanner.fillStyle(0x3a1a0a, 0.95);
     this.eventBanner.fillRect(20, 0, width - 40, bannerH);
-    this.eventBanner.lineStyle(1, 0x8a7a4a, 0.8);
+    this.eventBanner.lineStyle(1, 0x8a7a4a, 0.9);
     this.eventBanner.strokeRect(20, 0, width - 40, bannerH);
 
-    // Center text vertically inside the banner (4px padding from top)
     this.eventBannerText = this.add
-      .text(width / 2, 4, `${icon} ${eventName}!`, {
-        fill: '#d4c5a9',
+      .text(width / 2, 0, `${icon} ${eventName}!`, {
+        fill: '#f0dfb7',
         fontSize: '8px',
         fontFamily: '"Press Start 2P", monospace',
         align: 'center',
@@ -450,20 +451,28 @@ export default class HudScene extends Phaser.Scene {
       .setDepth(10003);
     this.add.existing(this.eventBannerText);
 
-    // Slide in from above: start off-screen, tween to restY
+    // Drive the box and label from one tweened y value so they cannot drift apart.
     const startY = -bannerH;
-    this.eventBannerText.y = startY;
-    this.eventBanner.y = startY;
+    const labelOffsetY = 6;
+    const position = { y: startY };
+    const syncBannerPosition = () => {
+      this.eventBanner.y = position.y;
+      if (this.eventBannerText) this.eventBannerText.y = position.y + labelOffsetY;
+    };
+    syncBannerPosition();
+
     this.eventBannerTween = this.tweens.add({
-      targets: [this.eventBannerText, this.eventBanner],
+      targets: position,
       y: restY,
-      duration: 300,
+      duration: 260,
       ease: 'Back.easeOut',
       hold: 2000,
       yoyo: true,
+      onUpdate: syncBannerPosition,
       onComplete: () => {
         if (this.eventBannerText) this.eventBannerText.destroy();
         this.eventBanner.clear();
+        this.eventBanner.y = 0;
       },
     });
   }
@@ -477,14 +486,8 @@ export default class HudScene extends Phaser.Scene {
     const positive = amount > 0;
     const symbol = positive ? '+' : '-';
     const absAmount = Math.abs(amount);
-    const style = { ...light, fill: positive ? '#7bba6a' : '#d95757' };
-    const text = new Text(
-      this,
-      this.fundsBox.x + 100,
-      this.fundsBox.y + (positive ? 8 : -8),
-      `${symbol}$${absAmount}`,
-      style,
-    );
+    const style = { ...small, fill: positive ? '#7bba6a' : '#d95757' };
+    const text = new Text(this, 82, 30, `${symbol}$${absAmount}`, style);
     this.add.existing(text);
 
     // Arc upward and fade
@@ -542,14 +545,29 @@ export default class HudScene extends Phaser.Scene {
     });
   }
 
-  checkMilestones(employeeCount, funds) {
-    const milestones = [
+  _getMilestones() {
+    return [
       { key: 'first_hire', count: 1, msg: 'First Employee Hired!' },
       { key: 'team_5', count: 5, msg: 'Team of 5!' },
       { key: 'team_10', count: 10, msg: 'Office of 10!' },
       { key: 'rich_500', funds: 500, msg: '$500 Saved!' },
       { key: 'rich_1000', funds: 1000, msg: '$1,000 Fortune!' },
     ];
+  }
+
+  _seedAchievedMilestones() {
+    const employeeCount = this.office.employees.getChildren().length;
+    const funds = this.office.economy.funds;
+    for (const milestone of this._getMilestones()) {
+      const triggered =
+        (milestone.count !== undefined && employeeCount >= milestone.count) ||
+        (milestone.funds !== undefined && funds >= milestone.funds);
+      if (triggered) this._milestones.add(milestone.key);
+    }
+  }
+
+  checkMilestones(employeeCount, funds) {
+    const milestones = this._getMilestones();
 
     for (const m of milestones) {
       if (this._milestones.has(m.key)) continue;
@@ -564,7 +582,7 @@ export default class HudScene extends Phaser.Scene {
   }
 
   // ===================================================================
-  // Employee Selection (styled pixel panel)
+  // Employee Selection (compact sidebar)
   // ===================================================================
 
   selectEmployee(e) {
@@ -573,118 +591,93 @@ export default class HudScene extends Phaser.Scene {
     this.selectedEmployee = e;
     if (!this.selectedEmployee) return;
 
-    const { width, height } = this.sys.game.canvas;
-    const pad = TILE_SIZE;
-    const panelX = pad;
-    const panelY = pad * 2;
-    const panelW = width - pad * 2;
-    const panelH = height - pad * 4;
+    const { width } = this.sys.game.canvas;
+    const panelW = 128;
+    const panelH = 132;
+    const panelX = width - panelW - 8;
+    const panelY = 36;
 
-    // Panel background
-    this.overlay = this.add
-      .graphics({ fillStyle: { color: 0x000000, alpha: 0.5 } })
-      .setScrollFactor(0)
-      .setDepth(9999);
-    this.overlay.fillRect(0, 0, width, height);
+    this._setZoomControlsVisible(false);
 
     this.panel = this.add.graphics().setScrollFactor(0).setDepth(9999);
-    this.panel.fillStyle(PANEL_BG, 0.95);
+    this.panel.fillStyle(PANEL_BG, 0.96);
     this.panel.fillRect(panelX, panelY, panelW, panelH);
-    this.panel.lineStyle(2, PANEL_BORDER, 1);
+    this.panel.lineStyle(1, PANEL_BORDER, 1);
     this.panel.strokeRect(panelX, panelY, panelW, panelH);
-    // Title bar
     this.panel.fillStyle(PANEL_TITLE_BG, 1);
-    this.panel.fillRect(panelX, panelY, panelW, 20);
-    this.panel.lineStyle(1, PANEL_BORDER, 0.8);
-    this.panel.lineBetween(panelX, panelY + 20, panelX + panelW, panelY + 20);
+    this.panel.fillRect(panelX, panelY, panelW, 17);
 
-    // Title
     this.panelTitle = this.add
-      .text(panelX + 8, panelY + 4, e.meta.name, {
+      .text(panelX + 6, panelY + 5, this._fitSidebarTitle(e.meta.name), {
         fill: TEXT_GOLD,
-        fontSize: '8px',
+        fontSize: '6px',
         fontFamily: '"Press Start 2P", monospace',
       })
       .setScrollFactor(0)
-      .setDepth(9999);
+      .setDepth(10000);
     this.add.existing(this.panelTitle);
 
-    // Body text
-    const bodyText = this._formatEmployeeBody(e);
     this.employeeInfo = this.add
-      .text(panelX + 8, panelY + 26, bodyText, {
+      .text(panelX + 6, panelY + 23, this._formatEmployeeSidebar(e), {
         fill: '#d4c5a9',
-        fontSize: '6px',
+        fontSize: '5px',
         fontFamily: '"Press Start 2P", monospace',
         lineSpacing: 3,
       })
       .setScrollFactor(0)
-      .setDepth(9999);
+      .setDepth(10000);
     this.add.existing(this.employeeInfo);
 
-    // Fire button
-    this.fireButton = new Button(this, panelX + 8, panelY + panelH - 40, 'FIRE', () => {
+    this.fireButton = new Button(this, panelX + 6, panelY + panelH - 25, 'FIRE', () => {
       this.selectedEmployee.fire();
       this.selectEmployee(null);
-    }).setDepth(9999);
+    }).setDepth(10000);
     this.add.existing(this.fireButton);
 
-    // Stats
-    this.employeeStats = this.add
-      .text(panelX + 80, panelY + panelH - 36, this._formatEmployeeStats(e), {
-        fill: '#d4c5a9',
-        fontSize: '6px',
-        fontFamily: '"Press Start 2P", monospace',
-        lineSpacing: 3,
-      })
-      .setScrollFactor(0)
-      .setDepth(9999);
-    this.add.existing(this.employeeStats);
-
-    // Close button
-    this.closeButton = new Button(this, panelX + panelW - 30, panelY + 4, 'X', () => {
+    this.closeButton = new Button(this, panelX + panelW - 24, panelY + 3, 'X', () => {
       this.selectEmployee(null);
-    }).setDepth(9999);
+    }).setDepth(10000);
     this.add.existing(this.closeButton);
 
-    // Refresh every 300ms
-    this._refreshTimer = this.time.delayedCall(300, () => {
-      if (this.selectedEmployee && this.employeeInfo) {
-        this.employeeInfo.setText(this._formatEmployeeBody(this.selectedEmployee));
-        this.employeeStats.setText(this._formatEmployeeStats(this.selectedEmployee));
-      }
+    this._refreshTimer = this.time.addEvent({
+      delay: 300,
+      loop: true,
+      callback: () => {
+        if (this.selectedEmployee && this.employeeInfo) {
+          this.employeeInfo.setText(this._formatEmployeeSidebar(this.selectedEmployee));
+        }
+      },
     });
   }
 
-  _formatEmployeeBody(e) {
-    const { meta, working, relief } = e;
-    let info = `Age: ${meta.age}\n`;
-    if (meta.traits?.length) {
-      info += `Traits: ${meta.traits.map((t) => t.name).join(', ')}\n`;
-    }
-    info += `\nHobbies:\n${meta.hobbies.map((h) => ` -${h}`).join('\n')}\n`;
-    info += `\nWorking: ${working ? 'yes' : 'no'}`;
-    if (meta.sadness) info += `\nSadness: ${meta.sadness}/3`;
-    if (relief) {
-      if (relief.inProgress) {
-        info += `\nCurrently: ${relief.relief.label}`;
-      } else {
-        info += `\nNeeds to ${relief.relief.label}`;
-        info += `\nTried ${relief.attempts}x`;
-      }
-    }
-    return info;
+  _fitSidebarTitle(name) {
+    return name.length > 16 ? `${name.slice(0, 15)}…` : name;
   }
 
-  _formatEmployeeStats(e) {
-    const { stats } = e.meta;
-    const f = (d) => Math.floor(d / 1000);
+  _formatEmployeeSidebar(e) {
+    const { meta, working, relief } = e;
+    const { stats } = meta;
+    const workSeconds = Math.floor(stats.work.duration / 1000);
+    const accidents = stats.pee.outside + stats.poo.outside;
+    const status = relief
+      ? relief.inProgress
+        ? relief.relief.label
+        : `Needs ${relief.relief.label}`
+      : working
+        ? 'Working'
+        : 'Moving';
+    const trait = meta.traits?.[0]?.name || 'None';
+    const hobby = meta.hobbies?.[0] || 'None';
+
     return [
-      'Stats:',
-      `Work:${f(stats.work.duration)}s`,
-      `Pee:${f(stats.pee.duration)}s`,
-      `Poo:${f(stats.poo.duration)}s`,
-      `Accidents:${stats.pee.outside + stats.poo.outside}`,
+      `Status: ${status}`,
+      `Age: ${meta.age}`,
+      `Trait: ${trait}`,
+      `Likes: ${hobby}`,
+      `Mood: ${meta.sadness || 0}/3 sad`,
+      '',
+      `Work: ${workSeconds}s`,
+      `Accidents: ${accidents}`,
     ].join('\n');
   }
 
@@ -696,10 +689,14 @@ export default class HudScene extends Phaser.Scene {
     if (this.fireButton) this.fireButton.destroy();
     if (this.closeButton) this.closeButton.destroy();
     if (this.employeeInfo) this.employeeInfo.destroy();
-    if (this.employeeStats) this.employeeStats.destroy();
     if (this.panelTitle) this.panelTitle.destroy();
     if (this.panel) this.panel.destroy();
-    if (this.overlay) this.overlay.destroy();
+    this._setZoomControlsVisible(true);
+  }
+
+  _setZoomControlsVisible(value) {
+    if (this.zoomInBtn) this.zoomInBtn.setVisible(value);
+    if (this.zoomOutBtn) this.zoomOutBtn.setVisible(value);
   }
 
   // ===================================================================
@@ -713,13 +710,13 @@ export default class HudScene extends Phaser.Scene {
     this.fundsBox.setText(`\uD83E\uDE99 $${Math.floor(funds)}`);
 
     const remaining = Math.ceil(this.office.dayCycle.getTimeRemaining());
-    this.phaseTimer.setText(`${remaining}s`);
+    this.phaseTimer.setText(`${remaining}s left`);
 
     const empCount = this.office.employees.getChildren().length;
     this.empCountText.setText(`\uD83D\uDC64 ${empCount}`);
 
-    // Check milestones
-    this.checkMilestones(empCount, funds);
+    // Check milestones after the title screen is dismissed.
+    if (this.office.introAcknowledged) this.checkMilestones(empCount, funds);
 
     // Phase progress bar with glow effect
     this.graphics.clear();
@@ -756,7 +753,7 @@ export default class HudScene extends Phaser.Scene {
       } else if (mode.cost) {
         cost = `$${mode.cost}`;
       }
-      this.buildCostText.setText(`${mode.label}  Cost:${cost}`);
+      this.buildCostText.setText(`${mode.label}\nCost:${cost}`);
     }
   }
 }

@@ -239,7 +239,7 @@ export default class EconomyManager {
 
   load(data) {
     if (!data) return;
-    this.funds = data.funds ?? 200;
+    this.funds = data.funds ?? 300;
     this.employeeCost = data.employeeCost ?? 50;
     this.employeeSalary = data.employeeSalary ?? 10;
     this.janitorEnabled = data.janitorEnabled ?? false;

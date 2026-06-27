@@ -1,30 +1,47 @@
 import Phaser from 'phaser';
 import { TILE_SIZE } from '../systems/TilemapManager';
 
-// Tile indices from the Dungeon_Tileset (0-based, 30x30 grid of 16px tiles).
-// Row 7, cols 18-24: tables/desks. Row 8, cols 18-20: wooden furniture.
-const DESK_TILES = [228, 229, 230, 231, 258, 259, 260];
+// 0x72 Dungeon Tileset workstation pieces (0-based, 30x30 grid of 16px tiles).
+// Tiles 10/11/40/41 are the proper 2-wide office computer desk.
+const WORKSTATION_TILES = [
+  [10, 11],
+  [40, 41],
+];
 
-/**
- * Renders a desk sprite using a tile from the dungeon tileset image.
- * Uses setCrop to show just the one 16x16 tile from the 30x30 grid.
- */
+const WORKSTATION_TEXTURE = 'office-computer-desk';
+
+function ensureWorkstationTexture(scene) {
+  if (scene.textures.exists(WORKSTATION_TEXTURE)) return;
+
+  const source = scene.textures.get('Dungeon_Tileset').source[0].image;
+  const canvas = scene.textures.createCanvas(WORKSTATION_TEXTURE, TILE_SIZE * 2, TILE_SIZE * 2);
+  const context = canvas.getContext();
+  context.imageSmoothingEnabled = false;
+  context.clearRect(0, 0, TILE_SIZE * 2, TILE_SIZE * 2);
+
+  for (let row = 0; row < WORKSTATION_TILES.length; row++) {
+    for (let col = 0; col < WORKSTATION_TILES[row].length; col++) {
+      const tileIndex = WORKSTATION_TILES[row][col];
+      const sx = (tileIndex % 30) * TILE_SIZE;
+      const sy = Math.floor(tileIndex / 30) * TILE_SIZE;
+      context.drawImage(source, sx, sy, TILE_SIZE, TILE_SIZE, col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+    }
+  }
+
+  canvas.refresh();
+}
+
+/** Renders a 2-wide computer workstation. Employees stand on the tile in front of it. */
 export default class Desk extends Phaser.GameObjects.Image {
   constructor(scene, gridX, gridY) {
-    const px = gridX * TILE_SIZE + TILE_SIZE / 2;
-    const py = gridY * TILE_SIZE + TILE_SIZE / 2;
-    super(scene, px, py, 'Dungeon_Tileset');
+    ensureWorkstationTexture(scene);
+
+    const px = gridX * TILE_SIZE;
+    const py = (gridY - 2) * TILE_SIZE;
+    super(scene, px, py, WORKSTATION_TEXTURE);
 
     scene.add.existing(this);
-    this.setOrigin(0.5, 0.75);
-    this.setDepth(10);
-
-    // Pick a random desk variant
-    const tileIdx = DESK_TILES[Math.floor(Math.random() * DESK_TILES.length)];
-    const col = tileIdx % 30;
-    const row = Math.floor(tileIdx / 30);
-    this.setCrop(col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-    // setCrop doesn't resize the displayed area — fix it
-    this.setDisplaySize(TILE_SIZE, TILE_SIZE);
+    this.setOrigin(0, 0);
+    this.setDepth(9);
   }
 }

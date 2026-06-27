@@ -13,7 +13,6 @@ export default class Button extends Phaser.GameObjects.Text {
     super(scene, x, y, text, baseStyle);
 
     this._callback = callback;
-    this._hoverScale = false;
 
     // Pixel-art border graphic
     this._border = scene.add.graphics().setScrollFactor(0).setDepth(998);
@@ -58,39 +57,20 @@ export default class Button extends Phaser.GameObjects.Text {
 
   _enterHover() {
     this._drawBorder(BTN_HOVER);
-
-    // Scale bounce
-    this.scene.tweens.add({
-      targets: this,
-      scaleX: 1.1,
-      scaleY: 1.1,
-      duration: 80,
-      ease: 'Back.easeOut',
-    });
   }
 
   _enterRest() {
     this._drawBorder(BTN_BG);
-
-    this.scene.tweens.add({
-      targets: this,
-      scaleX: 1,
-      scaleY: 1,
-      duration: 100,
-      ease: 'Sine.easeOut',
-    });
   }
 
   _enterActive() {
     this._drawBorder(BTN_ACTIVE);
+  }
 
-    // Pressed-in effect
-    this.scene.tweens.add({
-      targets: this,
-      scaleX: 0.95,
-      scaleY: 0.95,
-      duration: 50,
-    });
+  setDepth(value) {
+    super.setDepth(value);
+    if (this._border) this._border.setDepth(value - 1);
+    return this;
   }
 
   setVisible(value) {

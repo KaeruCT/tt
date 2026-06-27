@@ -1,11 +1,21 @@
+/* Pixel-art dungeon atmosphere */
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
 html, body {
     height: 100%;
     width: 100%;
     font-size: 100%;
-    font-family: sans-serif;
+    font-family: monospace, sans-serif;
     text-align: center;
     font-weight: lighter;
     overflow: hidden;
-    background: #111;
+    /* Dungeon vignette: dark center fading to near-black edges */
+    background: radial-gradient(ellipse at center, #1a1614 0%, #0a0806 70%, #000 100%);
 }
 * { box-sizing: border-box; }
+
+/* Pixel font with crisp rendering */
+canvas {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}

@@ -99,14 +99,14 @@ const HOBBIES = [
 ];
 
 const BUILD_MODES = {
-  DIG: { id: 'dig', label: 'Dig', costFn: 'getDigCost', icon: '⛏' },
-  DESK: { id: 'desk', label: 'Desk', cost: 30, icon: '🪑' },
-  PEE: { id: 'pee', label: 'Pee Point', costFn: 'getFacilityCost', costArg: 'pee', icon: '🚽' },
-  POO: { id: 'poo', label: 'Poo Point', costFn: 'getFacilityCost', costArg: 'poo', icon: '🚽' },
-  SINK: { id: 'sink', label: 'Sink', costFn: 'getFacilityCost', costArg: 'wash_hands', icon: '🚰' },
-  SHOWER: { id: 'shower', label: 'Shower', costFn: 'getFacilityCost', costArg: 'shower', icon: '🚿' },
-  CARPET: { id: 'carpet', label: 'Carpet', costFn: 'getCarpetCost', icon: '🟫' },
-  DECOR: { id: 'decor', label: 'Decor', cost: 10, icon: '🌿' },
+  DIG: { id: 'dig', label: 'Dig', costFn: 'getDigCost', icon: '\u26CF' },
+  DESK: { id: 'desk', label: 'Desk', cost: 30, icon: '\uD83E\uDE91' },
+  PEE: { id: 'pee', label: 'Pee Point', costFn: 'getFacilityCost', costArg: 'pee', icon: '\uD83D\uDEBD' },
+  POO: { id: 'poo', label: 'Poo Point', costFn: 'getFacilityCost', costArg: 'poo', icon: '\uD83D\uDEBD' },
+  SINK: { id: 'sink', label: 'Sink', costFn: 'getFacilityCost', costArg: 'wash_hands', icon: '\uD83D\uDEB0' },
+  SHOWER: { id: 'shower', label: 'Shower', costFn: 'getFacilityCost', costArg: 'shower', icon: '\uD83D\uDEBF' },
+  CARPET: { id: 'carpet', label: 'Carpet', costFn: 'getCarpetCost', icon: '\uD83D\uDFEB' },
+  DECOR: { id: 'decor', label: 'Decor', cost: 10, icon: '\uD83C\uDF3F' },
 };
 
 export default class OfficeScene extends Phaser.Scene {
@@ -151,7 +151,6 @@ export default class OfficeScene extends Phaser.Scene {
     if (stored) {
       const data = JSON.parse(stored);
       const tilemapData = this.business.load(data, this.economy, this.dayCycle, this.eventManager);
-      // Restore tilemap (dug tiles, placed objects like desks/decor)
       if (tilemapData) {
         this.tilemap.load(tilemapData);
       }
@@ -159,6 +158,9 @@ export default class OfficeScene extends Phaser.Scene {
 
     // --- Camera ---
     this.initCamera();
+
+    // --- Day/Night overlay ---
+    this.phaseOverlay = this.add.graphics().setDepth(500).setAlpha(0);
 
     // --- Groups ---
     this.employees = this.add.group();
@@ -171,6 +173,15 @@ export default class OfficeScene extends Phaser.Scene {
     this.buildMode = BUILD_MODES.DIG;
     this.buildCursor = this.add.graphics().setDepth(100).setAlpha(0.6);
     this.buildCursorVisible = false;
+    this._buildGrid = null;
+
+    // Ghost preview (semi-transparent preview of what will be placed)
+    this._ghostPreview = this.add.graphics().setDepth(99).setAlpha(0.4);
+    this._ghostPrevType = null;
+
+    // Buildable area overlay (dim non-walkable tiles during night)
+    this._buildableOverlay = this.add.graphics().setDepth(1).setAlpha(0.25);
+    this._buildableOverlayVisible = false;
 
     // --- Restore employees ---
     if (stored) {
@@ -179,7 +190,6 @@ export default class OfficeScene extends Phaser.Scene {
         this.addEmployee(se);
       }
 
-      // Restore relief points from save
       const storedReliefPoints = this.business.getReliefPoints();
       for (const srp of storedReliefPoints) {
         this.tilemap.setObject(srp.gridX, srp.gridY, srp.reliefId);
@@ -203,12 +213,9 @@ export default class OfficeScene extends Phaser.Scene {
         this.addDropping(d, false);
       }
 
-      // Restore desk and decor sprites from tilemap grid
       this._restoreObjectSprites();
     } else {
-      // Fresh game: start with 1 employee
       this.addEmployee();
-      // Place a poo point and a pee point in the starting room
       const startTiles = this.tilemap.getEmptyFloorTiles();
       if (startTiles.length >= 2) {
         const mid = Math.floor(startTiles.length / 2);
@@ -217,7 +224,7 @@ export default class OfficeScene extends Phaser.Scene {
       }
     }
 
-    // --- Input for build mode ---
+    // --- Input ---
     this.input.on('pointermove', this.onPointerMove, this);
     this.input.on('pointerdown', this.onPointerDown, this);
 
@@ -231,10 +238,7 @@ export default class OfficeScene extends Phaser.Scene {
 
   initCamera() {
     const camera = this.cameras.main;
-    const _mapPixelW = this.tilemap.cols * TILE_SIZE;
-    const _mapPixelH = this.tilemap.rows * TILE_SIZE;
 
-    // Start camera centered on the starting room
     const cx = Math.floor(this.tilemap.cols / 2) * TILE_SIZE;
     const cy = Math.floor(this.tilemap.rows / 2) * TILE_SIZE;
     camera.centerOn(cx, cy);
@@ -257,7 +261,7 @@ export default class OfficeScene extends Phaser.Scene {
   }
 
   // ===================================================================
-  // Phase Change (Day ↔ Night)
+  // Phase Change
   // ===================================================================
 
   onPhaseChange(phase, day) {
@@ -268,22 +272,31 @@ export default class OfficeScene extends Phaser.Scene {
     } else {
       this._enterDay();
     }
+
+    // Crossfade world tint
+    this._animatePhaseOverlay(phase);
+  }
+
+  _animatePhaseOverlay(_phase) {
+    // No world-space overlay — the day/night HUD indicator is sufficient.
+    // World-space tinting was washing out the carefully chosen tile colors.
+    this.phaseOverlay.clear();
+    this.phaseOverlay.setAlpha(0);
   }
 
   _enterNight() {
-    // Pause all employees
     const nightDurationMs = this.dayCycle.nightDuration * 1000;
     this.employees.getChildren().forEach((e) => {
       e.body.setVelocity(0, 0);
       e.stopAnimations();
       e.nightPaused = true;
-      // Extend relief expiration so it doesn't expire while paused
       if (e.relief?.expirationTime) {
         e.relief.expirationTime += nightDurationMs;
       }
+      // Spawn ZZZ particles for sleeping employees
+      this._spawnSleepParticles(e);
     });
 
-    // Un-flood any relief points from water main break
     this.reliefPoints.getChildren().forEach((rp) => {
       if (rp.meta.flooded) {
         rp.meta.flooded = false;
@@ -291,19 +304,16 @@ export default class OfficeScene extends Phaser.Scene {
       }
     });
 
-    // Auto-repair facilities
     this.reliefPoints.getChildren().forEach((rp) => {
       if (rp.meta.broken) {
         rp.fix();
       }
     });
 
-    // Janitor cleans droppings if enabled
     if (this.economy.janitorEnabled) {
       this._cleanAllDroppings();
     }
 
-    // Process end-of-day finances
     const employeeCount = this.employees.getChildren().length;
     const reliefCounts = {};
     this.reliefPoints.getChildren().forEach((rp) => {
@@ -314,27 +324,63 @@ export default class OfficeScene extends Phaser.Scene {
       this.tilemap.getTilesOfType(TILE_TYPES.CARPET_FLOOR).length;
 
     this.economy.processEndOfDay(employeeCount, reliefCounts, dugTiles);
+
+    // Draw buildable area overlay
+    this._drawBuildableOverlay();
   }
 
   _enterDay() {
-    // Resume employees
     this.employees.getChildren().forEach((e) => {
       e.nightPaused = false;
-      // Only return to desk if they don't have an active relief need.
-      // Employees with a need will resume their pathfinding next tick.
+      // Morning stretch animation
+      this._playStretchAnimation(e);
       if (!e.relief) {
         e.goToDesk();
       } else {
-        // Re-trigger pathfinding to their relief point
         e.destination = null;
         e.path = [];
         e.body.setVelocity(0, 0);
       }
     });
 
-    // Clear build cursor
     this.buildCursorVisible = false;
     this.buildCursor.clear();
+    this._buildableOverlay.clear();
+    this._buildableOverlayVisible = false;
+  }
+
+  _spawnSleepParticles(employee) {
+    if (!employee?.active) return;
+    let _count = 0;
+    const timer = this.time.addEvent({
+      delay: 800,
+      repeat: 4,
+      callback: () => {
+        if (!employee.nightPaused || !employee.active) {
+          timer.remove();
+          return;
+        }
+        this._emitParticle(employee.x, employee.y - 12, 'Z', '#aabbdd', 600);
+        _count++;
+      },
+    });
+  }
+
+  _playStretchAnimation(employee) {
+    if (!employee?.active) return;
+    // Quick scale pulse to simulate stretch
+    this.tweens.add({
+      targets: employee,
+      scaleY: 1.2,
+      scaleX: 0.9,
+      duration: 150,
+      yoyo: true,
+      ease: 'Sine.easeInOut',
+    });
+  }
+
+  _drawBuildableOverlay() {
+    // Disabled — dark overlay was making tiles look muddy.
   }
 
   _cleanAllDroppings() {
@@ -342,10 +388,6 @@ export default class OfficeScene extends Phaser.Scene {
     this.droppings.clear(true, true);
   }
 
-  /**
-   * Create sprites for all desk and decor objects in the tilemap grid.
-   * Called after loading a saved game.
-   */
   _restoreObjectSprites() {
     const desks = this.tilemap.getObjectsOfType('desk');
     for (const d of desks) {
@@ -362,6 +404,75 @@ export default class OfficeScene extends Phaser.Scene {
   }
 
   // ===================================================================
+  // Particle System
+  // ===================================================================
+
+  _emitParticle(x, y, text, color, duration) {
+    const p = this.add
+      .text(x, y, text, {
+        fill: color || '#ffffff',
+        fontSize: '6px',
+        fontFamily: '"Press Start 2P", monospace',
+      })
+      .setDepth(5000)
+      .setAlpha(1);
+    this.tweens.add({
+      targets: p,
+      y: y - 16,
+      alpha: 0,
+      duration: duration || 500,
+      ease: 'Sine.easeOut',
+      onComplete: () => p.destroy(),
+    });
+  }
+
+  _emitBuildParticles(gridX, gridY, color) {
+    const cx = gridX * TILE_SIZE + TILE_SIZE / 2;
+    const cy = gridY * TILE_SIZE + TILE_SIZE / 2;
+    for (let i = 0; i < 4; i++) {
+      const px = cx + (Math.random() - 0.5) * 8;
+      const py = cy + (Math.random() - 0.5) * 8;
+      const p = this.add.graphics().setDepth(5000);
+      p.fillStyle(color, 1);
+      p.fillRect(px, py, 2, 2);
+      this.tweens.add({
+        targets: p,
+        y: py - 12 + Math.random() * 8,
+        x: px + (Math.random() - 0.5) * 12,
+        alpha: 0,
+        duration: 400,
+        ease: 'Sine.easeOut',
+        onComplete: () => p.destroy(),
+      });
+    }
+  }
+
+  _emitDustParticle(x, y) {
+    const p = this.add.graphics().setDepth(5000);
+    const px = x + (Math.random() - 0.5) * 4;
+    const py = y + (Math.random() - 0.5) * 2;
+    p.fillStyle(0x8a7a5a, 0.6);
+    p.fillRect(px, py, 1, 1);
+    this.tweens.add({
+      targets: p,
+      y: py - 4,
+      alpha: 0,
+      duration: 300,
+      ease: 'Sine.easeOut',
+      onComplete: () => p.destroy(),
+    });
+  }
+
+  // ===================================================================
+  // Screen Shake
+  // ===================================================================
+
+  _screenShake(intensity = 3, duration = 200) {
+    const cam = this.cameras.main;
+    cam.shake(duration, intensity / 1000);
+  }
+
+  // ===================================================================
   // Build Mode
   // ===================================================================
 
@@ -372,16 +483,45 @@ export default class OfficeScene extends Phaser.Scene {
     const grid = this.tilemap.pixelToGrid(worldPoint.x, worldPoint.y);
 
     this.buildCursor.clear();
+    this._ghostPreview.clear();
+
     if (grid.x < 0 || grid.x >= this.tilemap.cols || grid.y < 0 || grid.y >= this.tilemap.rows) return;
 
     const px = grid.x * TILE_SIZE;
     const py = grid.y * TILE_SIZE;
 
     const canPlace = this._canBuildHere(grid.x, grid.y);
-    const color = canPlace ? 0x00ff00 : 0xff0000;
+    const color = canPlace ? 0x5ba85b : 0xa84a4a;
 
+    // Cursor rect with animated dashes (blinking corners)
+    const dashPhase = Math.floor((this.t % 40) / 10);
     this.buildCursor.lineStyle(1, color, 0.8);
-    this.buildCursor.strokeRect(px, py, TILE_SIZE, TILE_SIZE);
+
+    // Top edge
+    for (let i = 0; i < 4; i++) {
+      if ((i + dashPhase) % 2 === 0) {
+        this.buildCursor.lineBetween(px + i * 4, py, px + i * 4 + 4, py);
+      }
+      // Bottom
+      if ((i + dashPhase) % 2 === 0) {
+        this.buildCursor.lineBetween(px + i * 4, py + TILE_SIZE, px + i * 4 + 4, py + TILE_SIZE);
+      }
+      // Left
+      if ((i + dashPhase) % 2 === 0) {
+        this.buildCursor.lineBetween(px, py + i * 4, px, py + i * 4 + 4);
+      }
+      // Right
+      if ((i + dashPhase) % 2 === 0) {
+        this.buildCursor.lineBetween(px + TILE_SIZE, py + i * 4, px + TILE_SIZE, py + i * 4 + 4);
+      }
+    }
+
+    // Ghost preview
+    if (canPlace) {
+      this._ghostPreview.fillStyle(0xffffff, 0.15);
+      this._ghostPreview.fillRect(px + 1, py + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+    }
+
     this.buildCursorVisible = true;
     this._buildGrid = grid;
   }
@@ -393,7 +533,38 @@ export default class OfficeScene extends Phaser.Scene {
     const { x, y } = this._buildGrid;
     if (!this._canBuildHere(x, y)) return;
 
+    // Check affordability first
+    const mode = this.buildMode;
+    const cost = this._getBuildCost(mode);
+    if (!this.economy.canAfford(cost)) {
+      this._cantAffordFlash();
+      return;
+    }
+
     this._executeBuild(x, y);
+  }
+
+  _getBuildCost(mode) {
+    if (mode.costFn) {
+      if (mode.id === 'dig') return this.tilemap.getDigCost();
+      if (mode.id === 'carpet') return this.tilemap.getCarpetCost();
+      return this.economy.getFacilityCost(mode.costArg);
+    }
+    return mode.cost || 0;
+  }
+
+  _cantAffordFlash() {
+    // Red flash on funds
+    if (this.hud.fundsBox) {
+      this.tweens.add({
+        targets: this.hud.fundsBox,
+        alpha: 0.3,
+        duration: 100,
+        yoyo: true,
+        repeat: 2,
+      });
+    }
+    this._screenShake(2, 100);
   }
 
   _canBuildHere(gridX, gridY) {
@@ -407,32 +578,49 @@ export default class OfficeScene extends Phaser.Scene {
       return this.tilemap.getTileType(gridX, gridY) === TILE_TYPES.STONE_FLOOR && !this.tilemap.getObject(gridX, gridY);
     }
 
-    // Object placement
     return this.tilemap.canPlaceObject(gridX, gridY);
   }
 
   _executeBuild(gridX, gridY) {
     const mode = this.buildMode;
-    let cost = 0;
-
-    if (mode.costFn) {
-      if (mode.id === 'dig') {
-        cost = this.tilemap.getDigCost();
-      } else if (mode.id === 'carpet') {
-        cost = this.tilemap.getCarpetCost();
-      } else {
-        cost = this.economy.getFacilityCost(mode.costArg);
-      }
-    } else if (mode.cost) {
-      cost = mode.cost;
-    }
+    const cost = this._getBuildCost(mode);
 
     if (!this.economy.canAfford(cost)) return;
 
     const success = this._doBuild(gridX, gridY, mode);
     if (success) {
       this.economy.takeFunds(cost);
+      this._onBuildSuccess(gridX, gridY, mode);
     }
+  }
+
+  _onBuildSuccess(gridX, gridY, mode) {
+    // Particle effects
+    const colors = {
+      dig: 0x8a7a6a,
+      desk: 0x8a6a4a,
+      carpet: 0x6a5a4a,
+      decor: 0x4a8a4a,
+      pee: 0x6a8aaa,
+      poo: 0x6a4a2a,
+      sink: 0x6a8aaa,
+      shower: 0x5a8aaa,
+    };
+    const color = colors[mode.id] || 0xffffff;
+    this._emitBuildParticles(gridX, gridY, color);
+
+    // Screen flash
+    const px = gridX * TILE_SIZE + TILE_SIZE / 2;
+    const py = gridY * TILE_SIZE + TILE_SIZE / 2;
+    const flash = this.add.graphics().setDepth(5000);
+    flash.fillStyle(0xffffff, 0.3);
+    flash.fillRect(px - 8, py - 8, 16, 16);
+    this.tweens.add({
+      targets: flash,
+      alpha: 0,
+      duration: 300,
+      onComplete: () => flash.destroy(),
+    });
   }
 
   _doBuild(gridX, gridY, mode) {
@@ -519,7 +707,6 @@ export default class OfficeScene extends Phaser.Scene {
 
   addEmployee(storedMeta = null) {
     const emptyDesks = this.tilemap.getObjectsOfType('desk').filter((d) => {
-      // Check no employee already assigned to this desk
       const existing = this.employees
         .getChildren()
         .find((e) => e.meta.desk && e.meta.desk.gridX === d.gridX && e.meta.desk.gridY === d.gridY);
@@ -527,7 +714,6 @@ export default class OfficeScene extends Phaser.Scene {
     });
 
     if (!storedMeta && emptyDesks.length === 0) {
-      // No desks available - try to place one
       const emptyTiles = this.tilemap.getEmptyFloorTiles();
       if (emptyTiles.length > 0) {
         const pos = emptyTiles[0];
@@ -577,6 +763,29 @@ export default class OfficeScene extends Phaser.Scene {
 
     const pixelPos = this.tilemap.gridToPixel(desk.gridX, desk.gridY);
     const e = new Employee(this, meta, pixelPos.x, pixelPos.y, this.tilemap);
+
+    // Fade-in animation for new hires
+    if (!storedMeta) {
+      e.setAlpha(0);
+      e.setScale(0.5);
+      e.decorations.forEach((d) => d.setAlpha(0));
+      this.tweens.add({
+        targets: [e, ...e.decorations],
+        alpha: 1,
+        duration: 500,
+        ease: 'Back.easeOut',
+        onStart: () => {
+          this.tweens.add({
+            targets: e,
+            scaleX: 1,
+            scaleY: 1,
+            duration: 500,
+            ease: 'Back.easeOut',
+          });
+        },
+      });
+    }
+
     this.employees.add(e);
     e.body.setCollideWorldBounds(true);
 
@@ -593,8 +802,44 @@ export default class OfficeScene extends Phaser.Scene {
     this.business.employeeRemoval(e, type);
   }
 
+  /**
+   * Play quit/fire animation then remove.
+   */
+  animateEmployeeRemoval(e) {
+    if (!e?.active) return;
+    // Scale down + fade + drop
+    this.tweens.add({
+      targets: [e, ...e.decorations],
+      alpha: 0,
+      scaleY: 0.1,
+      y: e.y + 8,
+      duration: 400,
+      ease: 'Sine.easeIn',
+      onComplete: () => {
+        e.onEmployeeRemoval('quit');
+      },
+    });
+    // Poof particles
+    for (let i = 0; i < 6; i++) {
+      this._emitParticle(e.x, e.y, '.', '#d4c5a9', 400 + Math.random() * 200);
+    }
+  }
+
   selectEmployee(e) {
     this.hud.selectEmployee(e);
+    // Selection ring
+    this._clearSelectionRing();
+    if (e) {
+      this._selectionRing = this.add.graphics().setDepth(e.depth - 1);
+      this._selectionRing.lineStyle(1, 0xc9a84c, 0.6);
+      this._selectionRing.strokeCircle(e.x, e.y, 10);
+      this._selectedEmployee = e;
+    }
+  }
+
+  _clearSelectionRing() {
+    if (this._selectionRing) this._selectionRing.destroy();
+    this._selectedEmployee = null;
   }
 
   // ===================================================================
@@ -615,16 +860,12 @@ export default class OfficeScene extends Phaser.Scene {
     return counts;
   }
 
-  /**
-   * Try to make an employee wash hands at a nearby sink after using a toilet.
-   */
   _tryWashHands(employee) {
     const sinks = this.reliefPoints.getChildren().filter((p) => p.reliefId === 'wash_hands' && p.canUse());
     if (sinks.length === 0) {
       employee.goToDesk();
       return;
     }
-    // Find nearest sink
     const nearest = sinks.reduce((best, s) => {
       const dist = Math.abs(s.x - employee.x) + Math.abs(s.y - employee.y);
       if (!best || dist < best.dist) return { point: s, dist };
@@ -651,20 +892,32 @@ export default class OfficeScene extends Phaser.Scene {
   // Update Loop
   // ===================================================================
 
-  update(time, delta) {
+  update(time, _delta) {
     this.t++;
+    const delta = this.game.loop.delta;
 
-    // Update day/night cycle
-    const _phaseChanged = this.dayCycle.update(delta);
+    // Phase progress bar
 
     if (this.dayCycle.isPlayMode()) {
       this._updateDayPhase(time, delta);
     }
 
-    if (this.dayCycle.isBuildMode() && this.buildCursorVisible) {
-      this.buildCursor.setVisible(true);
-    } else if (this.dayCycle.isBuildMode() === false) {
+    // Build mode visibility
+    if (this.dayCycle.isBuildMode()) {
+      this.buildCursor.setVisible(this.buildCursorVisible);
+      this._ghostPreview.setVisible(this.buildCursorVisible);
+    } else {
       this.buildCursor.setVisible(false);
+      this._ghostPreview.setVisible(false);
+    }
+
+    // Selection ring follows employee
+    if (this._selectedEmployee?.active) {
+      this._selectionRing.clear();
+      this._selectionRing.lineStyle(1, 0xc9a84c, 0.5 + Math.sin(this.t * 0.05) * 0.2);
+      this._selectionRing.strokeCircle(this._selectedEmployee.x, this._selectedEmployee.y, 10);
+    } else if (this._selectionRing) {
+      this._clearSelectionRing();
     }
 
     // Save periodically
@@ -682,27 +935,38 @@ export default class OfficeScene extends Phaser.Scene {
 
       const t = this.t + Math.floor(e.seed * 1000);
 
-      // Apply event speed modifier
+      // Event speed modifier
       if (activeEvents.speedMultiplier) {
         e.speed = e.initialSpeed * activeEvents.speedMultiplier;
       } else {
         e.speed = e.initialSpeed;
       }
 
-      // Dungeon monster scatters employees
+      // Scare employees
       if (activeEvents.scareEmployees && e.working && t % 200 === 0) {
         e.working = false;
         e.body.setVelocity((Math.random() - 0.5) * 200, (Math.random() - 0.5) * 200);
+        // Panic wiggle
+        e.triggerPanic = true;
         setTimeout(() => {
           if (e.active) e.goToDesk();
         }, 2000);
       }
 
+      // Walking dust particles
+      if (e.body.velocity.x !== 0 || e.body.velocity.y !== 0) {
+        if (t % 8 === 0) this._emitDustParticle(e.x, e.y + 6);
+      }
+
+      // Arrival dust puff
+      if (e.destination === null && e._wasMoving) {
+        this._emitParticle(e.x, e.y + 4, '\u2022', '#8a7a5a', 300);
+      }
+      e._wasMoving = e.body.velocity.x !== 0 || e.body.velocity.y !== 0;
+
       if (t % 100 === 0) {
         // Relief logic
         const relief = e.relief;
-
-        // Event urgency multipliers make needs more frequent
         const urgencyMult = activeEvents.pooUrgencyMultiplier && !relief ? activeEvents.pooUrgencyMultiplier : 1.0;
         const triggerChance = 0.1 * urgencyMult;
 
@@ -725,8 +989,6 @@ export default class OfficeScene extends Phaser.Scene {
         }
 
         if (relief) {
-          // Re-trigger pathfinding if employee has a need but no destination
-          // (e.g. just resumed after night)
           if (!e.reliefPoint && !e.destination && !e.path.length) {
             e.triggerRestroomAttempt(this.findReliefPoint.bind(this));
           }
@@ -736,9 +998,9 @@ export default class OfficeScene extends Phaser.Scene {
           }
 
           if (relief.expirationTime && time > relief.expirationTime) {
-            // Skip if already using a facility, or if employee has arrived at
-            // the relief point (will start using it this tick's update)
             if (!relief.inProgress && !(e.destination === null && e.reliefPoint !== null)) {
+              // Panic animation before accident
+              e.triggerPanic = true;
               const expiredRelief = relief;
               e.setRelief(null);
               setTimeout(() => e.releaseInPlace(expiredRelief), randRange(500, 2000));
@@ -755,7 +1017,7 @@ export default class OfficeScene extends Phaser.Scene {
       }
     });
 
-    // Update z-depth
+    // Z-depth sorting
     this.employees.getChildren().forEach((c) => {
       c.setDepth(c.y);
     });
@@ -773,7 +1035,7 @@ export default class OfficeScene extends Phaser.Scene {
   }
 
   // ===================================================================
-  // Event Handlers (called by EventManager)
+  // Event Handlers
   // ===================================================================
 
   spawnRats(_evt) {
@@ -785,6 +1047,7 @@ export default class OfficeScene extends Phaser.Scene {
   }
 
   inspectOffice(_evt) {
+    // Banner handled via EventManager end event - we register a post-hoc banner
     const droppingCount = this.droppings.getChildren().length;
     const fine = droppingCount * 5;
     if (fine > 0) {
@@ -795,9 +1058,6 @@ export default class OfficeScene extends Phaser.Scene {
     }
   }
 
-  /**
-   * Flood a random subset of relief points (Water Main Break).
-   */
   floodReliefPoints(count) {
     const available = this.reliefPoints.getChildren().filter((rp) => !rp.meta.flooded && !rp.meta.broken);
     const toFlood = available.slice(0, Math.min(count, available.length));
@@ -811,12 +1071,10 @@ export default class OfficeScene extends Phaser.Scene {
     this.floodReliefPoints(evt.definition.effect.floodReliefPoints || 1);
   }
 
-  onWaterMainBreakEnd(_evt) {
-    // Unflood all points at night transition (handled in _enterNight)
-  }
+  onWaterMainBreakEnd(_evt) {}
 
   // ===================================================================
-  // Employee Info (for HUD)
+  // Employee Info
   // ===================================================================
 
   getEmployeeInfo(e) {

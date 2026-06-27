@@ -203,6 +203,16 @@ export default class EventManager {
     this.activeEvents.push(evt);
     this.eventCooldown = this.cooldownDuration;
 
+    // Show event banner on HUD
+    if (this.scene.hud?.showEventBanner) {
+      this.scene.hud.showEventBanner(definition.name, definition.icon, definition.duration);
+    }
+
+    // Screen shake for dramatic events
+    if (this.scene._screenShake) {
+      this.scene._screenShake(4, 300);
+    }
+
     // Call onStart handler if it exists on the scene
     if (definition.onStart && this.scene[definition.onStart]) {
       this.scene[definition.onStart](evt);

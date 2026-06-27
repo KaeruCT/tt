@@ -1,6 +1,15 @@
 import 'normalize.css/normalize.css';
 import './styles/index.scss';
-import './game/index.js';
+
+// Wait for web fonts to load before starting the game
+// to avoid Phaser text rendering crashes with unloaded fonts.
+async function start() {
+  if (document.fonts?.ready) {
+    await document.fonts.ready;
+  }
+  await import('./game/index.js');
+}
+start();
 
 window.addEventListener(
   'touchmove',

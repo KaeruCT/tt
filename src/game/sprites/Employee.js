@@ -27,12 +27,14 @@ export default class Employee extends Phaser.GameObjects.Sprite {
     this.nightPaused = false;
     this.destination = null;
     this.onDestinationSuccess = null;
+    this.triggerPanic = false;
+    this._wasMoving = false;
 
     this.decorations = [new Hair(this, meta.hair), new Clothes(this, meta.clothes)];
 
-    // Needs indicator (emoji floating above head)
+    // Needs indicator (emoji floating above head with bobbing animation)
     this.needsIndicator = scene.add
-      .text(x, y - 14, '', { fontSize: '10px', fontFamily: 'monospace' })
+      .text(x, y - 14, '', { fontSize: '10px', fontFamily: '"Press Start 2P", monospace' })
       .setOrigin(0.5)
       .setDepth(99999);
 
@@ -63,10 +65,15 @@ export default class Employee extends Phaser.GameObjects.Sprite {
       frameRate: 10,
       repeat: -1,
     });
+
+    // Idle animation timer
+    this._idleTimer = 0;
+    this._idleInterval = 5000 + Math.random() * 10000; // random 5-15s
   }
 
   setDestination(destination) {
     this.working = false;
+    this._wasMoving = false;
     return new Promise((resolve) => {
       this.destination = destination;
       this.reliefPoint = destination;
@@ -93,10 +100,8 @@ export default class Employee extends Phaser.GameObjects.Sprite {
     if (path !== null) {
       if (path.length > 0) path.shift();
       this.path = path;
-      console.log('Employee', this.meta.name, 'path found,', path.length, 'steps');
     } else {
       this.path = [];
-      console.log('Employee', this.meta.name, 'no path found');
     }
   }
 
@@ -118,7 +123,6 @@ export default class Employee extends Phaser.GameObjects.Sprite {
         }
         this.setRelief(null);
 
-        // Auto-wash hands after pee/poo if a sink is available
         if ((relief.id === 'pee' || relief.id === 'poo') && this.scene._tryWashHands) {
           this.scene._tryWashHands(this);
         } else {
@@ -148,7 +152,13 @@ export default class Employee extends Phaser.GameObjects.Sprite {
       return;
     }
     const pixelPos = this.tilemap.gridToPixel(desk.gridX, desk.gridY);
-    const dest = { x: pixelPos.x, y: pixelPos.y, gridX: desk.gridX, gridY: desk.gridY, meta: desk.meta };
+    const dest = {
+      x: pixelPos.x,
+      y: pixelPos.y,
+      gridX: desk.gridX,
+      gridY: desk.gridY,
+      meta: desk.meta,
+    };
     this.setDestination(dest).then(() => {
       this.working = true;
     });
@@ -157,7 +167,6 @@ export default class Employee extends Phaser.GameObjects.Sprite {
   triggerRestroomAttempt(findReliefPoint) {
     if (!this.relief) return;
 
-    // Smoke breaks don't need a relief point
     if (this.relief.relief?.outdoor) {
       this.startToRelieve();
       return;
@@ -186,17 +195,18 @@ export default class Employee extends Phaser.GameObjects.Sprite {
     if (this.relief && this.reliefPoint) this.relief.release(this.reliefPoint);
     if (this.scene.hud?.selectedEmployee === this) this.scene.hud.selectEmployee(null);
     this.decorations.forEach((d) => d.destroy());
+    if (this.needsIndicator) this.needsIndicator.destroy();
     this.destroy();
   }
 
   fire() {
     console.log('Employee', this.meta.name, 'fired!');
-    this.onEmployeeRemoval('fire');
+    this.scene.animateEmployeeRemoval(this);
   }
 
   quit() {
     console.log('Employee', this.meta.name, 'quit!');
-    this.onEmployeeRemoval('quit');
+    this.scene.animateEmployeeRemoval(this);
   }
 
   update(time, delta) {
@@ -207,6 +217,15 @@ export default class Employee extends Phaser.GameObjects.Sprite {
     const dx = body.velocity.x ? (body.velocity.x > 0 ? -1 : 1) : 0;
     const dy = body.velocity.y ? (body.velocity.y > 0 ? -1 : 1) : 0;
     const current = tilemap.pixelToGrid(this.x + dx * TILE_SIZE * 0.5, this.y + dy * TILE_SIZE * 0.5);
+
+    // Panic animation: fast wiggle + red tint flash
+    if (this.triggerPanic) {
+      this.tint = 0xff8888;
+      this.scene.time.delayedCall(300, () => {
+        if (this.active) this.tint = meta.tint;
+      });
+      this.triggerPanic = false;
+    }
 
     // Follow path
     const nextPoint = path.length && path[0];
@@ -236,7 +255,26 @@ export default class Employee extends Phaser.GameObjects.Sprite {
     else if (body.velocity.y > 0) this.playAnimation('employee-down');
     else if (body.velocity.x < 0) this.playAnimation('employee-left');
     else if (body.velocity.x > 0) this.playAnimation('employee-right');
-    else if (destination === null) this.stopAnimations();
+    else if (this.working) {
+      // Idle animation: occasional stretch/look
+      this._idleTimer += delta;
+      if (this._idleTimer > this._idleInterval) {
+        this._idleTimer = 0;
+        this._idleInterval = 5000 + Math.random() * 10000;
+        // Tiny bounce
+        this.scene.tweens.add({
+          targets: this,
+          scaleY: 1.15,
+          scaleX: 0.95,
+          duration: 150,
+          yoyo: true,
+          ease: 'Sine.easeInOut',
+        });
+      }
+      this.stopAnimations();
+    } else if (destination === null) {
+      this.stopAnimations();
+    }
 
     // Check arrival
     if (destination) {
@@ -251,22 +289,28 @@ export default class Employee extends Phaser.GameObjects.Sprite {
           this.onDestinationSuccess = null;
         }
         this.destination = null;
-        console.log('Employee', meta.name, 'arrived');
       }
     }
 
     this.decorations.forEach((d) => d.update());
 
-    // Update needs indicator
+    // Update needs indicator with bobbing animation
     if (this.needsIndicator) {
-      this.needsIndicator.setPosition(this.x, this.y - 14);
+      const bobOffset = Math.sin(this.time * 0.004) * 2;
+      this.needsIndicator.setPosition(this.x, this.y - 14 + bobOffset);
       if (this.relief && !this.relief.inProgress) {
-        const icons = { pee: '💧', poo: '💩', wash_hands: '🧼', shower: '🚿', smoke_break: '🚬' };
-        this.needsIndicator.setText(icons[this.relief.id] || '❓');
-        this.needsIndicator.setAlpha(0.7 + Math.sin(this.time * 0.005) * 0.3);
-      } else if (this.relief?.inProgress) {
-        this.needsIndicator.setText('⏳');
+        const icons = {
+          pee: '\uD83D\uDCA7',
+          poo: '\uD83D\uDCA9',
+          wash_hands: '\uD83E\uDDFC',
+          shower: '\uD83D\uDEBF',
+          smoke_break: '\uD83D\uDEAC',
+        };
+        this.needsIndicator.setText(icons[this.relief.id] || '\u2753');
         this.needsIndicator.setAlpha(0.8);
+      } else if (this.relief?.inProgress) {
+        this.needsIndicator.setText('\u23F3');
+        this.needsIndicator.setAlpha(0.7);
       } else {
         this.needsIndicator.setText('');
       }

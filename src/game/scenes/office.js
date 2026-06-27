@@ -250,8 +250,8 @@ export default class OfficeScene extends Phaser.Scene {
     const cy = Math.floor(this.tilemap.rows / 2);
 
     const starterDesks = [
-      { x: cx - 4, y: cy + 1 },
-      { x: cx - 1, y: cy + 1 },
+      { x: cx - 6, y: cy + 1 },
+      { x: cx - 3, y: cy + 1 },
     ];
 
     for (const desk of starterDesks) {
@@ -259,9 +259,8 @@ export default class OfficeScene extends Phaser.Scene {
     }
 
     // Bathroom is the enclosed right-side room behind the partition wall/door.
-    // Urinals line the right wall; the toilet starts in the bottom-right corner.
+    // Keep the center lane clear from the door so employees do not appear blocked.
     this.placeObject(cx + 3, cy - 1, 'pee');
-    this.placeObject(cx + 3, cy, 'pee');
     this.placeObject(cx + 3, cy + 1, 'poo');
     this.placeObject(cx + 2, cy + 1, 'wash_hands');
   }

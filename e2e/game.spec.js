@@ -125,6 +125,33 @@ test.describe('Dynamic tilemap', () => {
     expect(rockTiles).toBe(545);
   });
 
+  test('starter bathroom entrance is clear', async ({ page }) => {
+    await clearSave(page);
+    await waitForGame(page);
+
+    const doorway = await page.evaluate(() => {
+      const tm = window.__officeScene.tilemap;
+      const cx = Math.floor(tm.cols / 2);
+      const cy = Math.floor(tm.rows / 2);
+      const tiles = [
+        { key: 'officeApproach', x: cx, y: cy },
+        { key: 'doorway', x: cx + 1, y: cy },
+        { key: 'bathroomLane', x: cx + 2, y: cy },
+      ];
+      return tiles.map((tile) => ({
+        key: tile.key,
+        walkable: tm.isWalkable(tile.x, tile.y),
+        object: tm.getObject(tile.x, tile.y),
+      }));
+    });
+
+    expect(doorway).toEqual([
+      { key: 'officeApproach', walkable: true, object: null },
+      { key: 'doorway', walkable: true, object: null },
+      { key: 'bathroomLane', walkable: true, object: null },
+    ]);
+  });
+
   test('can dig rock to create floor', async ({ page }) => {
     await clearSave(page);
     await waitForGame(page);

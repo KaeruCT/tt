@@ -5,9 +5,7 @@ on:
         branches: [master]
 
 permissions:
-    contents: read
-    pages: write
-    id-token: write
+    contents: write
 
 concurrency:
     group: pages
@@ -15,9 +13,6 @@ concurrency:
 
 jobs:
     deploy:
-        environment:
-            name: github-pages
-            url: ${{ steps.deployment.outputs.page_url }}
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v5
@@ -33,10 +28,20 @@ jobs:
 
             - run: pnpm build
 
-            - uses: actions/configure-pages@v6
+            - name: Deploy dist to gh-pages
+              run: |
+                  git config user.name "github-actions[bot]"
+                  git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-            - uses: actions/upload-pages-artifact@v3
-              with:
-                  path: dist
+                  rm -rf /tmp/tt-pages
+                  mkdir -p /tmp/tt-pages
+                  cp -R dist/. /tmp/tt-pages/
+                  touch /tmp/tt-pages/.nojekyll
 
-            - uses: actions/deploy-pages@v5
+                  git checkout --orphan gh-pages
+                  git rm -rf .
+                  git clean -fdx
+                  cp -R /tmp/tt-pages/. .
+                  git add -A
+                  git commit -m "Deploy ${GITHUB_SHA}"
+                  git push origin gh-pages --force

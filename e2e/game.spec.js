@@ -100,6 +100,87 @@ test.describe('Game initialization', () => {
   });
 });
 
+test.describe('Milestones', () => {
+  test('shows the first objective after starting', async ({ page }) => {
+    await clearSave(page);
+    await waitForGame(page);
+
+    const objective = await page.evaluate(async () => {
+      const hud = window.__game.scene.getScene('HudScene');
+      const startButton = hud.children.list.find((child) => child.type === 'Text' && child.text === 'START GAME');
+      startButton.emit('pointerup');
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      hud.update();
+      return {
+        title: hud.objectiveTitle.text,
+        text: hud.objectiveText.text,
+      };
+    });
+
+    expect(objective.title).toBe('NEXT GOAL');
+    expect(objective.text).toContain('Hire a coworker');
+    expect(objective.text).toContain('1/2');
+  });
+
+  test('completing a milestone grants reward and advances the objective', async ({ page }) => {
+    await clearSave(page);
+    await waitForGame(page);
+
+    const state = await page.evaluate(async () => {
+      const office = window.__officeScene;
+      const hud = window.__game.scene.getScene('HudScene');
+      hud.children.list.find((child) => child.type === 'Text' && child.text === 'START GAME').emit('pointerup');
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const beforeFunds = office.economy.getFunds();
+      office.hireEmployee();
+      hud.update();
+      return {
+        beforeFunds,
+        afterFunds: office.economy.getFunds(),
+        milestones: office.business.getMilestones(),
+        objective: hud.objectiveText.text,
+      };
+    });
+
+    expect(state.beforeFunds).toBe(300);
+    expect(state.afterFunds).toBe(275);
+    expect(state.milestones).toContain('hire_coworker');
+    expect(state.objective).toContain('Dig 4 floor tiles');
+  });
+
+  test('milestone completion persists across reloads', async ({ page }) => {
+    await clearSave(page);
+    await waitForGame(page);
+
+    await page.evaluate(async () => {
+      const office = window.__officeScene;
+      const hud = window.__game.scene.getScene('HudScene');
+      hud.children.list.find((child) => child.type === 'Text' && child.text === 'START GAME').emit('pointerup');
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      office.hireEmployee();
+      hud.update();
+    });
+
+    await page.reload();
+    await waitForGame(page);
+
+    const state = await page.evaluate(() => {
+      const office = window.__officeScene;
+      const hud = window.__game.scene.getScene('HudScene');
+      hud.update();
+      return {
+        introAcknowledged: office.introAcknowledged,
+        milestones: office.business.getMilestones(),
+        objective: hud.objectiveText.text,
+      };
+    });
+
+    expect(state.introAcknowledged).toBe(true);
+    expect(state.milestones).toContain('hire_coworker');
+    expect(state.objective).toContain('Dig 4 floor tiles');
+  });
+});
+
 test.describe('Dynamic tilemap', () => {
   test('starting room has stone floor tiles', async ({ page }) => {
     await clearSave(page);
@@ -453,6 +534,34 @@ test.describe('Facility management', () => {
     expect(washCost).toBe(50);
     expect(showerCost).toBe(300);
   });
+
+  test('sinks and showers do not count as toilets', async ({ page }) => {
+    await clearSave(page);
+    await waitForGame(page);
+
+    const support = await page.evaluate(() => {
+      const scene = window.__officeScene;
+      const points = scene.reliefPoints.getChildren();
+      const pooTarget = scene.findReliefPoint('poo');
+      return {
+        pooTargetType: pooTarget.reliefId,
+        supports: points.map((point) => ({
+          type: point.reliefId,
+          supportsPee: point.supportsRelief('pee'),
+          supportsPoo: point.supportsRelief('poo'),
+          supportsWash: point.supportsRelief('wash_hands'),
+        })),
+      };
+    });
+
+    expect(support.pooTargetType).toBe('poo');
+    expect(support.supports).toContainEqual({
+      type: 'wash_hands',
+      supportsPee: false,
+      supportsPoo: false,
+      supportsWash: true,
+    });
+  });
 });
 
 test.describe('Crisis events', () => {
@@ -492,6 +601,24 @@ test.describe('Crisis events', () => {
 
     expect(state.activeEvents).toBe(0);
     expect(state.cooldown).toBeGreaterThan(0);
+  });
+
+  test('coffee spill briefly pauses working employees', async ({ page }) => {
+    await clearSave(page);
+    await waitForGame(page);
+
+    const paused = await page.evaluate(() => {
+      const scene = window.__officeScene;
+      const employee = scene.employees.getChildren()[0];
+      employee.working = true;
+      employee.nextReliefMinTime = Number.POSITIVE_INFINITY;
+      scene.eventManager.activeEvents = [{ definition: { effect: { slipChance: 1 } }, remaining: 10 }];
+      scene.t = 250 - (Math.floor(employee.seed * 1000) % 250);
+      scene._updateDayPhase(performance.now(), 16);
+      return employee.working;
+    });
+
+    expect(paused).toBe(false);
   });
 
   test('getActiveEffects returns empty object when no events', async ({ page }) => {

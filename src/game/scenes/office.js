@@ -986,6 +986,11 @@ export default class OfficeScene extends Phaser.Scene {
         this._sendEmployeeOnPanicHop(e);
       }
 
+      // Coffee spill: a brief, non-pathfinding pause that stops work income.
+      if (activeEvents.slipChance && e.working && t % 250 === 0 && randBool(activeEvents.slipChance)) {
+        this._pauseEmployeeBriefly(e, '☕', 1500);
+      }
+
       // Walking dust particles
       if (e.body.velocity.x !== 0 || e.body.velocity.y !== 0) {
         if (t % 8 === 0) this._emitDustParticle(e.x, e.y + 6);
@@ -1000,7 +1005,9 @@ export default class OfficeScene extends Phaser.Scene {
       if (t % 100 === 0) {
         // Relief logic
         const relief = e.relief;
-        const urgencyMult = activeEvents.pooUrgencyMultiplier && !relief ? activeEvents.pooUrgencyMultiplier : 1.0;
+        const urgencyMult = !relief
+          ? (activeEvents.pooUrgencyMultiplier || 1.0) * (activeEvents.reliefUrgencyMultiplier || 1.0)
+          : 1.0;
         const triggerChance = 0.1 * urgencyMult;
 
         if (!relief && time > e.nextReliefMinTime && randBool(triggerChance)) {
@@ -1067,6 +1074,18 @@ export default class OfficeScene extends Phaser.Scene {
     // Update events
     this.eventManager.update(delta, this.employees.getChildren().length);
     this.hud.updateEvents(this.eventManager.getActiveEventNames());
+  }
+
+  _pauseEmployeeBriefly(employee, indicator, duration) {
+    employee.working = false;
+    employee.body.setVelocity(0, 0);
+    if (employee.needsIndicator) employee.needsIndicator.setText(indicator);
+
+    this.time.delayedCall(duration, () => {
+      if (!employee.active) return;
+      if (employee.needsIndicator?.text === indicator) employee.needsIndicator.setText('');
+      if (!employee.relief && !employee.destination) employee.working = true;
+    });
   }
 
   _sendEmployeeOnPanicHop(employee) {

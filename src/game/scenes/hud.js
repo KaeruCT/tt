@@ -36,6 +36,59 @@ const BUILD_MODE_BUTTONS = [
   { id: 'shower', label: 'Shower', row: 7 },
 ];
 
+const STARTER_FLOOR_TILES = 51;
+const MILESTONES = [
+  {
+    key: 'hire_coworker',
+    title: 'Hire a coworker',
+    hint: 'Use the spare desk',
+    reward: 25,
+    progress: ({ employeeCount }) => Math.min(employeeCount, 2),
+    target: 2,
+  },
+  {
+    key: 'dig_expansion',
+    title: 'Dig 4 floor tiles',
+    hint: 'Night build mode',
+    reward: 50,
+    progress: ({ dugTiles }) => Math.min(dugTiles, 4),
+    target: 4,
+  },
+  {
+    key: 'second_toilet',
+    title: 'Build another toilet',
+    hint: 'More staff need relief',
+    reward: 50,
+    progress: ({ reliefCounts }) => Math.min(reliefCounts.poo || 0, 2),
+    target: 2,
+  },
+  {
+    key: 'team_three',
+    title: 'Grow to 3 employees',
+    hint: 'Build desks first',
+    reward: 75,
+    progress: ({ employeeCount }) => Math.min(employeeCount, 3),
+    target: 3,
+  },
+  {
+    key: 'cash_buffer',
+    title: 'Save $500',
+    hint: 'Survive payroll',
+    reward: 100,
+    progress: ({ funds }) => Math.min(Math.max(0, Math.floor(funds)), 500),
+    target: 500,
+    prefix: '$',
+  },
+  {
+    key: 'survive_day_three',
+    title: 'Reach Day 3',
+    hint: 'Keep the office alive',
+    reward: 150,
+    progress: ({ currentDay }) => Math.min(currentDay, 3),
+    target: 3,
+  },
+];
+
 export default class HudScene extends Phaser.Scene {
   constructor() {
     super({ key: 'HudScene', active: true });
@@ -56,7 +109,6 @@ export default class HudScene extends Phaser.Scene {
     if (this.office?.ready) {
       this.onOfficeReady();
     } else if (!localStorage.getItem('business')) {
-      this._milestones.add('first_hire');
       this._showTitleScreen();
     }
   }
@@ -166,8 +218,8 @@ export default class HudScene extends Phaser.Scene {
     this.reportText.setVisible(false);
     this.add.existing(this.reportText);
 
-    // Reset button (bottom-right)
-    this.resetButton = new Button(this, 370, BOTTOM_Y, 'RESET', () => {
+    // Reset button (bottom-right, keep border fully inside the 426px canvas)
+    this.resetButton = new Button(this, 350, BOTTOM_Y, 'RESET', () => {
       localStorage.removeItem('business');
       window.location.reload();
     });
@@ -191,6 +243,23 @@ export default class HudScene extends Phaser.Scene {
     this.eventBannerText = null;
     this.eventBannerTween = null;
 
+    // --- Objective panel ---
+    this.objectiveBg = this.add.graphics().setScrollFactor(0).setDepth(997);
+    this.objectiveTitle = this.add.text(294, 32, '', {
+      fill: '#c9a84c',
+      fontSize: '6px',
+      fontFamily: '"Press Start 2P", monospace',
+    });
+    this.objectiveTitle.setScrollFactor(0).setDepth(999);
+    this.objectiveText = this.add.text(294, 43, '', {
+      fill: '#d4c5a9',
+      fontSize: '6px',
+      fontFamily: '"Press Start 2P", monospace',
+      lineSpacing: 3,
+    });
+    this.objectiveText.setScrollFactor(0).setDepth(999);
+    this.objectiveProgress = this.add.graphics().setScrollFactor(0).setDepth(999);
+
     // --- Toast notification system ---
     this._toastContainer = this.add.container(0, 0).setScrollFactor(0).setDepth(10001);
   }
@@ -203,12 +272,14 @@ export default class HudScene extends Phaser.Scene {
       this.onPhaseChange(this.office.dayCycle.currentPhase, this.office.dayCycle.currentDay);
     }
 
+    this._loadMilestonesFromSave();
+
     if (this.office?.introAcknowledged) {
-      this._seedAchievedMilestones();
+      this._renderObjectivePanel();
       return;
     }
 
-    this._milestones.add('first_hire');
+    this._renderObjectivePanel();
     this._showTitleScreen(
       this.office?.saveLoadFailed ? 'Your old save could not be loaded.\nPlease start a new office.' : '',
     );
@@ -358,11 +429,11 @@ export default class HudScene extends Phaser.Scene {
     const profitColor = report.profit >= 0 ? '#7bba6a' : '#d95757';
     const profit = `${report.profit >= 0 ? '+' : ''}$${report.profit}`;
     const upkeep = report.maintenanceCost + report.rentCost + report.janitorCost;
-    const message = `Day: ${profit}  Rev $${report.revenue}  Cost $${report.salaryCost + upkeep}`;
-    const toastW = 228;
+    const message = `Day ${profit}  Rev $${report.revenue}  Cost $${report.salaryCost + upkeep}`;
+    const toastW = 190;
     const toastH = 18;
-    const toastX = 99;
-    const toastY = 30;
+    const toastX = 128;
+    const toastY = 194;
 
     const bg = this.add.graphics().setScrollFactor(0).setDepth(10002).setAlpha(0);
     bg.fillStyle(PANEL_BG, 0.92);
@@ -493,24 +564,26 @@ export default class HudScene extends Phaser.Scene {
   }
 
   // ===================================================================
-  // Milestone Toasts
+  // Milestones / Objectives
   // ===================================================================
 
-  showMilestone(message) {
+  showMilestone(message, reward = 0) {
     const { width } = this.sys.game.canvas;
-    const toastY = 140;
+    const toastY = 130;
+    const rewardText = reward > 0 ? `  +$${reward}` : '';
+    const fullMessage = `✓ ${message}${rewardText}`;
 
     const bg = this.add.graphics().setScrollFactor(0).setDepth(10003);
-    bg.fillStyle(0x2a1a0a, 0.9);
-    const textW = message.length * 7 + 16;
-    bg.fillRect((width - textW) / 2, toastY, textW, 20);
-    bg.lineStyle(1, 0xc9a84c, 0.8);
-    bg.strokeRect((width - textW) / 2, toastY, textW, 20);
+    bg.fillStyle(0x2a1a0a, 0.94);
+    const textW = Math.min(width - 24, fullMessage.length * 7 + 16);
+    bg.fillRect((width - textW) / 2, toastY, textW, 22);
+    bg.lineStyle(1, 0xc9a84c, 0.9);
+    bg.strokeRect((width - textW) / 2, toastY, textW, 22);
 
     const toast = this.add
-      .text(width / 2, toastY + 4, message, {
+      .text(width / 2, toastY + 6, fullMessage, {
         fill: '#c9a84c',
-        fontSize: '8px',
+        fontSize: '7px',
         fontFamily: '"Press Start 2P", monospace',
         align: 'center',
       })
@@ -524,9 +597,9 @@ export default class HudScene extends Phaser.Scene {
       targets: [toast, bg],
       alpha: 1,
       y: '-=5',
-      duration: 300,
+      duration: 220,
       ease: 'Back.easeOut',
-      hold: 2000,
+      hold: 2200,
       yoyo: true,
       onComplete: () => {
         toast.destroy();
@@ -535,42 +608,89 @@ export default class HudScene extends Phaser.Scene {
     });
   }
 
-  _getMilestones() {
-    return [
-      { key: 'first_hire', count: 1, msg: 'First Employee Hired!' },
-      { key: 'team_5', count: 5, msg: 'Team of 5!' },
-      { key: 'team_10', count: 10, msg: 'Office of 10!' },
-      { key: 'rich_500', funds: 500, msg: '$500 Saved!' },
-      { key: 'rich_1000', funds: 1000, msg: '$1,000 Fortune!' },
-    ];
+  _loadMilestonesFromSave() {
+    const saved = this.office?.business?.getMilestones?.() || [];
+    this._milestones = new Set(saved);
   }
 
-  _seedAchievedMilestones() {
-    if (!this.office?.employees || !this.office?.economy) return;
+  _saveMilestones() {
+    if (!this.office?.business?.setMilestones) return;
 
-    const employeeCount = this.office.employees.getChildren().length;
-    const funds = this.office.economy.funds;
-    for (const milestone of this._getMilestones()) {
-      const triggered =
-        (milestone.count !== undefined && employeeCount >= milestone.count) ||
-        (milestone.funds !== undefined && funds >= milestone.funds);
-      if (triggered) this._milestones.add(milestone.key);
+    this.office.business.setMilestones([...this._milestones]);
+    this.office.business.save(this.office.economy, this.office.dayCycle, this.office.eventManager, this.office.tilemap);
+  }
+
+  _getMilestoneState() {
+    const tm = this.office.tilemap;
+    return {
+      employeeCount: this.office.employees.getChildren().length,
+      funds: this.office.economy.getFunds(),
+      currentDay: this.office.dayCycle.currentDay,
+      dugTiles: Math.max(
+        0,
+        tm.getTilesOfType('stone_floor').length + tm.getTilesOfType('carpet_floor').length - STARTER_FLOOR_TILES,
+      ),
+      reliefCounts: this.office.getReliefPointCounts(),
+    };
+  }
+
+  _getActiveMilestone(state = this._getMilestoneState()) {
+    return MILESTONES.find(
+      (milestone) => !this._milestones.has(milestone.key) && milestone.progress(state) < milestone.target,
+    );
+  }
+
+  _renderObjectivePanel(state = this._getMilestoneState()) {
+    if (!this.objectiveBg || !this.objectiveTitle || !this.objectiveText) return;
+
+    const milestone = this._getActiveMilestone(state);
+    this.objectiveBg.clear();
+
+    if (!milestone) {
+      this.objectiveBg.fillStyle(PANEL_BG, 0.78);
+      this.objectiveBg.fillRect(286, 30, 132, 42);
+      this.objectiveBg.lineStyle(1, PANEL_BORDER, 0.75);
+      this.objectiveBg.strokeRect(286, 30, 132, 42);
+      this.objectiveTitle.setText('GOAL COMPLETE');
+      this.objectiveText.setText('Build freely.\nSurvive chaos.');
+      this.objectiveProgress.clear();
+      return;
     }
+
+    const progress = milestone.progress(state);
+    const clamped = Math.min(progress, milestone.target);
+    const prefix = milestone.prefix || '';
+    this.objectiveBg.fillStyle(PANEL_BG, 0.78);
+    this.objectiveBg.fillRect(286, 30, 132, 50);
+    this.objectiveBg.lineStyle(1, PANEL_BORDER, 0.75);
+    this.objectiveBg.strokeRect(286, 30, 132, 50);
+    this.objectiveTitle.setText('NEXT GOAL');
+    this.objectiveText.setText(
+      `${milestone.title}\n${prefix}${clamped}/${prefix}${milestone.target}\n${milestone.hint}`,
+    );
+
+    this.objectiveProgress.clear();
+    this.objectiveProgress.fillStyle(PROGRESS_BG, 1);
+    this.objectiveProgress.fillRect(294, 72, 112, 3);
+    this.objectiveProgress.fillStyle(0xc9a84c, 1);
+    this.objectiveProgress.fillRect(294, 72, 112 * (clamped / milestone.target), 3);
   }
 
-  checkMilestones(employeeCount, funds) {
-    const milestones = this._getMilestones();
+  checkMilestones() {
+    if (!this.office?.introAcknowledged) return;
+    const state = this._getMilestoneState();
 
-    for (const m of milestones) {
-      if (this._milestones.has(m.key)) continue;
-      let triggered = false;
-      if (m.count !== undefined && employeeCount >= m.count) triggered = true;
-      if (m.funds !== undefined && funds >= m.funds) triggered = true;
-      if (triggered) {
-        this._milestones.add(m.key);
-        this.showMilestone(m.msg);
+    for (const milestone of MILESTONES) {
+      if (this._milestones.has(milestone.key)) continue;
+      if (milestone.progress(state) >= milestone.target) {
+        this._milestones.add(milestone.key);
+        if (milestone.reward > 0) this.office.economy.addFunds(milestone.reward);
+        this._saveMilestones();
+        this.showMilestone(milestone.title, milestone.reward);
       }
     }
+
+    this._renderObjectivePanel(state);
   }
 
   // ===================================================================

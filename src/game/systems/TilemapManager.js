@@ -1,8 +1,8 @@
 import EasyStar from 'easystarjs';
 
 export const TILE_SIZE = 16;
-export const MAP_COLS = 30;
-export const MAP_ROWS = 20;
+const MAP_COLS = 30;
+const MAP_ROWS = 20;
 
 // -----------------------------------------------------------------
 // 0x72 Dungeon Tileset — autotile indices (0-based, 30-col grid)

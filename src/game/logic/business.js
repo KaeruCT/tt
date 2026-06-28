@@ -10,6 +10,7 @@ export class Business {
     this.employees = [];
     this.reliefPoints = [];
     this.droppings = [];
+    this.milestones = [];
     this.employeeCost = 50;
     this.employeeSalary = 10;
     this.onFundsChange = onFundsChange;
@@ -43,6 +44,14 @@ export class Business {
     return this.reliefPoints;
   }
 
+  getMilestones() {
+    return this.milestones;
+  }
+
+  setMilestones(milestones) {
+    this.milestones = milestones;
+  }
+
   employeeRemoval(e, type) {
     if (type === 'fired') {
       this.employeeCost += 5;
@@ -62,6 +71,7 @@ export class Business {
       employees: this.employees,
       reliefPoints: this.reliefPoints,
       droppings: this.droppings,
+      milestones: this.milestones,
       employeeCost: this.employeeCost,
       employeeSalary: this.employeeSalary,
       economy: economy.save(),
@@ -82,6 +92,7 @@ export class Business {
     this.employees = data.employees || [];
     this.reliefPoints = data.reliefPoints || [];
     this.droppings = data.droppings || [];
+    this.milestones = data.milestones || [];
     this.employeeCost = data.employeeCost || 50;
     this.employeeSalary = data.employeeSalary || 10;
 

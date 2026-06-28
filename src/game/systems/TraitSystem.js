@@ -4,7 +4,7 @@
  */
 import { randRange, randValue } from '../utils/rand';
 
-export const TRAITS = {
+const TRAITS = {
   IRON_BLADDER: {
     id: 'iron_bladder',
     name: 'Iron Bladder',
@@ -134,53 +134,4 @@ export function rollTraits() {
 function removeById(arr, id) {
   const idx = arr.findIndex((t) => t.id === id);
   if (idx >= 0) arr.splice(idx, 1);
-}
-
-/**
- * Check if an employee has a specific trait.
- */
-export function hasTrait(employee, traitId) {
-  return employee.meta.traits?.some((t) => t.id === traitId) || false;
-}
-
-/**
- * Calculate work speed multiplier from all employee traits.
- */
-export function getWorkSpeedMultiplier(employee) {
-  let mult = 1.0;
-  if (!employee.meta.traits) return mult;
-  for (const trait of employee.meta.traits) {
-    if (trait.workSpeedMultiplier) {
-      mult *= trait.workSpeedMultiplier;
-    }
-  }
-  return mult;
-}
-
-/**
- * Calculate relief time multiplier from all employee traits.
- */
-export function getReliefTimeMultiplier(employee) {
-  let mult = 1.0;
-  if (!employee.meta.traits) return mult;
-  for (const trait of employee.meta.traits) {
-    if (trait.reliefTimeMultiplier) {
-      mult *= trait.reliefTimeMultiplier;
-    }
-  }
-  return mult;
-}
-
-/**
- * Calculate relief limit multiplier from all employee traits.
- */
-export function getReliefLimitMultiplier(employee) {
-  let mult = 1.0;
-  if (!employee.meta.traits) return mult;
-  for (const trait of employee.meta.traits) {
-    if (trait.reliefLimitMultiplier) {
-      mult *= trait.reliefLimitMultiplier;
-    }
-  }
-  return mult;
 }

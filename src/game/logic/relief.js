@@ -33,7 +33,7 @@ const RELIEF_WASH = {
   limit: { min: 0, max: 0 },
   cooldown: 5,
   attemptCooldown: 3,
-  supported: ['pee', 'poo'],
+  supported: ['wash_hands'],
   minPointUsages: 10,
   fixPointTime: 2,
   triggeredBy: ['pee', 'poo'], // automatically triggered after these reliefs
@@ -47,7 +47,7 @@ const RELIEF_SHOWER = {
   limit: { min: 0, max: 0 },
   cooldown: 120,
   attemptCooldown: 30,
-  supported: ['pee', 'poo'],
+  supported: ['shower'],
   minPointUsages: 8,
   fixPointTime: 8,
   optional: true,
@@ -73,39 +73,6 @@ export const RELIEF_TYPES = {
   [RELIEF_WASH.id]: RELIEF_WASH,
   [RELIEF_SHOWER.id]: RELIEF_SHOWER,
   [RELIEF_SMOKE.id]: RELIEF_SMOKE,
-};
-
-// --- Facility Upgrades ---
-
-export const UPGRADES = {
-  AIR_FRESHENER: {
-    id: 'air_freshener',
-    name: 'Air Freshener',
-    cost: 30,
-    desc: 'Reduces stink penalty for adjacent desks.',
-    effect: { stinkReduction: true },
-  },
-  PREMIUM_STALL: {
-    id: 'premium_stall',
-    name: 'Premium Stall',
-    cost: 150,
-    desc: '50% more uses before breaking.',
-    effect: { durabilityMultiplier: 1.5 },
-  },
-  AIR_DRYER: {
-    id: 'air_dryer',
-    name: 'Air Dryer',
-    cost: 80,
-    desc: 'Hand-washing time halved.',
-    effect: { washTimeMultiplier: 0.5 },
-  },
-  MAGICAL_PLUMBING: {
-    id: 'magical_plumbing',
-    name: 'Magical Plumbing',
-    cost: 500,
-    desc: 'Never breaks.',
-    effect: { unbreakable: true },
-  },
 };
 
 // --- Relief Class ---
